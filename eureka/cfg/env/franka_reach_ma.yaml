@@ -1,0 +1,4 @@
+task: FrankaReachMA
+env_name: franka_reach_ma
+description: there are multiple arms in a same env. each arm should touch the cubeA. more cubeA be touched is better. collision is not good.
+max_iterations: 200

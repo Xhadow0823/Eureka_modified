@@ -265,6 +265,9 @@ def main(cfg):
                             # Provide ground-truth score when success rate not applicable
                             if "consecutive_successes" not in tensorboard_logs:
                                 content += f"ground-truth score: {metric_cur}, Max: {metric_cur_max:.2f}, Mean: {metric_cur_mean:.2f}, Min: {metric_cur_min:.2f} \n"                    
+                # prevent argmax the empty successes array
+                if "consecutive_successes" not in tensorboard_logs:
+                    successes.append(DUMMY_FAILURE)
                 code_feedbacks.append(code_feedback)
                 content += code_feedback  
             else:
@@ -395,3 +398,10 @@ def main(cfg):
 
 if __name__ == "__main__":
     main()
+
+
+# guide for adding new task for eureka
+#   add the vec_task class file into isaacgymenvs/tasks
+#   add the task and train in cfg
+#   add env template and obs template for LLM in eureka/envs/isaac
+#   add task des

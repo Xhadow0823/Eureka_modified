@@ -1,0 +1,4 @@
+task: FrankaReach
+env_name: franka_reach
+description: to touch the cubeA
+max_iterations: 200

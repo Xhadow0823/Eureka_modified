@@ -1,0 +1,1 @@
+to use the end effector to hold the cubeA and then lift it to the cubeB's position

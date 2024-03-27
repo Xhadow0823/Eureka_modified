@@ -108,12 +108,12 @@ class Chat:
         self._chatLogger.update_token_usage(response["usage"])
         self.logger.info(f"used tokens: {response['usage']}")
 
-        return assistant_content_pair["content"]
+        return assistant_content_pair["content"] #, response['usage']
     
     def interactive_chat(self):
         self.logger.warning(f"Interactive chat mode. typing exit to exit this mode")
 
-        system_content = input("enter the system prompt:")
+        system_content = input("Enter the system prompt:")
         self.set_system_content(system_content)
 
         MAX_CHAT_TIMES = 100
@@ -123,7 +123,6 @@ class Chat:
             if user_content.strip().lower() == "exit":
                 self.logger.warning(f"Leaving interactive chat mode...")
                 break
-
             assistant_response = self.chat(user_content)
             # self.logger.info(f"response: \n {assistant_response}")
             print(f"response: \n {assistant_response}\n=====")
@@ -133,18 +132,30 @@ class Chat:
             if chat_id >= MAX_CHAT_TIMES:
                 self.logger.warning(f"Leaving interactive chat mode...")
                 break
+        print(f"Total token: {self._chatLogger.get_token_usage()}")
         self.logger.info(f"Total token: {self._chatLogger.get_token_usage()}")
+
         
 
 
 def main():
+
+    # INTERACTIVE CHAT MODE
+    # ic = Chat()
+    # ic.interactive_chat()
+
     # c = Chat()
     # c.set_system_content("you are a translator, you translate anything into traditional chinese")
     # print(c.chat("how is your cold today?"))
 
-    ic = Chat()
-    ic.interactive_chat()
-
+    # c = Chat()
+    # c.set_system_content("you are a linux shell. you only response like a shell. do not explain")
+    # print(c.chat("mkdir aaa; cd ./aaa"))
+    # print(c.chat("pwd; echo 'cheese'"))
+    # print(c._chatLogger.get_token_usage())
+    
+    
+    pass
     
 
 if __name__ == "__main__":

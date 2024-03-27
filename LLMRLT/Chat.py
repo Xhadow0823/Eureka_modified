@@ -24,7 +24,6 @@ class Messages:
     def get_all(self)->List[MessageDict]:
         return self._all_messages.copy()
     def load(self, file_path: str):
-        raise NotImplementedError()
         conversation: List[MessageDict] = None
         try:
             with open(file_path, 'r') as f:
@@ -135,6 +134,9 @@ class Chat:
 
     def get_total_usage(self):
         return self._usage.get_all()["total_tokens"]
+
+    def load_conversation(self, file_path: str):
+        self._messages.load(file_path)
 
     def interactive_chat(self):
         print(f"Interactive chat mode. typing exit to exit this mode")

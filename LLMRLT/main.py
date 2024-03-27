@@ -1,21 +1,23 @@
-import logging
 from Prompt import Prompt
 from Chat import Chat
 from Logger import Logger
 
+task = 'FrankaLift'
 
-# logging.basicConfig(level=logging.DEBUG)
-# logging.debug("GG this is DEBUG")
-# logging.info("GG this is INFO")
-# logging.warning("GG this WARNING")
-# logging.error("GG this is ERROR")
+prompt = Prompt(task_name=task)
+chat = Chat()
+chat_logger = Logger(task_name=task)
+logger = chat_logger.getLogger()
 
-p = Prompt('FrankaLift')
-# print(messages)
+logger.info("DEMO START")
 
-c = Chat()
-c.set_system_content(p.initial_system)
+logger.info(f"SYSTEM PROMPT: {prompt.initial_system}")
+chat.set_system_content(prompt.initial_system)
 
-resp = c.chat(p.initial_user)
+logger.info(f"USER PROMPT: {prompt.initial_user}")
+resp = chat.chat(prompt.initial_user)
+logger.info(f"LLM RESPONSE: {resp}")
 
-print( resp )
+logger.info(f"TOTAL TOKEN: {chat.get_total_usage()}")
+logger.info("DEMO END")
+chat_logger.save_conversation( chat.get_conversation() )  # save as json

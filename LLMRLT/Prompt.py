@@ -11,18 +11,25 @@ class Prompt:
     initial_user: str = ""
     '''the initial user prompt for the task, this will not be changed after __init__'''
 
-    def __init__(self, task_name: str):
+    def __init__(self, task_name: str, prompt_config: Dict[str, str]=dict()):
         self.task_name = task_name
 
-        prompt_dir = f'{get_current_file_dir()}/prompts/'
-        initial_system   = file_to_string(f'{prompt_dir}/initial_system.txt')
-        code_output_tip  = file_to_string(f'{prompt_dir}/code_output_tip.txt')
-        initial_user     = file_to_string(f'{prompt_dir}/initial_user.txt')
-        reward_signature = file_to_string(f'{prompt_dir}/reward_signature.txt')
+        prompt_dir = f'prompts/'
+        initial_system_path   = f'{prompt_dir}/initial_system.txt'   if "initial_system" not in prompt_config else prompt_config["initial_system"]
+        code_output_tip_path  = f'{prompt_dir}/code_output_tip.txt'  if "code_output_tip" not in prompt_config else prompt_config["code_output_tip"]
+        initial_user_path     = f'{prompt_dir}/initial_user.txt'     if "initial_user" not in prompt_config else prompt_config["initial_user"]
+        reward_signature_path = f'{prompt_dir}/reward_signature.txt' if "reward_signature" not in prompt_config else prompt_config["reward_signature"]
+        initial_system   = file_to_string(f'{get_current_file_dir()}/' + initial_system_path)
+        code_output_tip  = file_to_string(f'{get_current_file_dir()}/' + code_output_tip_path)
+        initial_user     = file_to_string(f'{get_current_file_dir()}/' + initial_user_path)
+        reward_signature = file_to_string(f'{get_current_file_dir()}/' + reward_signature_path)
 
-        policy_feedback = file_to_string(f'{prompt_dir}/policy_feedback.txt')
-        code_feedback = file_to_string(f'{prompt_dir}/code_feedback.txt')
-        execution_error_feedback = file_to_string(f'{prompt_dir}/execution_error_feedback.txt')
+        policy_feedback_path = f'{prompt_dir}/policy_feedback.txt' if "policy_feedback" not in prompt_config else prompt_config["policy_feedback"]
+        code_feedback_path   = f'{prompt_dir}/code_feedback.txt'   if "code_feedback" not in prompt_config else prompt_config["code_feedback"]
+        execution_error_feedback_path = f'{prompt_dir}/execution_error_feedback.txt' if "execution_error_feedback" not in prompt_config else prompt_config["execution_error_feedback"]
+        policy_feedback          = file_to_string(f'{get_current_file_dir()}/' + policy_feedback_path)
+        code_feedback            = file_to_string(f'{get_current_file_dir()}/' + code_feedback_path)
+        execution_error_feedback = file_to_string(f'{get_current_file_dir()}/' + execution_error_feedback_path)
         
         task_dir = f'{get_current_file_dir()}/tasks/{task_name}/'
         task_obs  = file_to_string(f"{task_dir}/obs.py")
@@ -42,12 +49,20 @@ class Prompt:
 if __name__ == "__main__":
     task = "FrankaLift"  # global, only for testing
 
-    p = Prompt(task)
+    p = Prompt(task, prompt_config={
+        # "initial_system": "fuck/1.txt",
+        # "code_output_tip": "fuck/2.txt",
+        # "initial_user": "fuck/3.txt",
+        # "reward_signature": "fuck/4.txt",
+        # "policy_feedback": "fuck/3.txt",
+        # "code_feedback": "fuck/3.txt",
+        # "execution_error_feedback": "fuck/3.txt",
+    })
 
     from Logger import Logger
     prompt_logger = Logger(task_name=task)
     logger = prompt_logger.getLogger()
-    logger.DEBUG( p.get_prompts() )
+    logger.debug( p.get_prompts() )
 
     
     pass

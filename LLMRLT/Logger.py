@@ -38,7 +38,10 @@ class Logger:
         
     def getLogger(self) -> logging.Logger:
         return self.__logger
-
+    
+    def get_log_path_n_name(self):
+        return self.log_file_path, self.log_file_name
+    
     def save_conversation(self, conversation: List[Dict]):
         json_file = f"{self.log_file_path}/{self.log_file_name}.json"
         with open(json_file, "w", encoding='utf-8') as f:

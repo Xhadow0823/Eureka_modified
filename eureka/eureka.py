@@ -152,7 +152,7 @@ def main(cfg):
                 continue
 
             code_runs.append(code_string)
-            reward_signature = [
+            reward_signature = [  # NOTE: This part is BAD
                 f"self.rew_buf[:], self.rew_dict = {gpt_reward_signature}",
                 f"self.extras['gpt_reward'] = self.rew_buf.mean()",
                 f"for rew_state in self.rew_dict: self.extras[rew_state] = self.rew_dict[rew_state].mean()",

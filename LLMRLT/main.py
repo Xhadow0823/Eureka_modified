@@ -4,7 +4,10 @@ from Logger import Logger
 
 task = 'FrankaLift'
 
-prompt = Prompt(task_name=task)
+prompt = Prompt(task_name=task, prompt_config={
+    "code_output_tip": "prompts/FSM/FSM_code_output_tip.txt",
+    "reward_signature": "prompts/FSM/FSM_reward_signature.txt"
+})
 chat = Chat()
 chat_logger = Logger(task_name=task)
 logger = chat_logger.getLogger()

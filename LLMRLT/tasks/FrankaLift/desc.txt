@@ -1,1 +1,6 @@
-to use the end effector to hold the cubeA and then lift it to the cubeB's position
+to use the end effector to hold the cubeA and then lift it as high as possible
+There are 3 state in this task, state 0 , state 1 and state 2, and the state information is been stored in states["FSM"]
+The environment and reward function are devided into several states:
+state 0 means the end effector is going to reach the position of the cubeA.
+state 1 means the end effector is going to hold the cubeA.
+state 2 means the end effector is going to take the cubeA as high as possible.

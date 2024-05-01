@@ -1,6 +1,7 @@
 from argparse import ArgumentParser
 from typing import Dict, List
 from utils import get_current_file_dir, file_to_string
+from Types import PromptConfig
 
 class Prompt:
     # initial: Dict[str, str] = None
@@ -11,7 +12,7 @@ class Prompt:
     initial_user: str = ""
     '''the initial user prompt for the task, this will not be changed after __init__'''
 
-    def __init__(self, task_name: str, prompt_config: Dict[str, str]=dict()):
+    def __init__(self, task_name: str, prompt_config: PromptConfig={}):
         self.task_name = task_name
 
         prompt_dir = f'prompts/'
@@ -50,13 +51,13 @@ if __name__ == "__main__":
     task = "FrankaLift"  # global, only for testing
 
     p = Prompt(task, prompt_config={
-        # "initial_system": "fuck/1.txt",
-        # "code_output_tip": "fuck/2.txt",
-        # "initial_user": "fuck/3.txt",
-        # "reward_signature": "fuck/4.txt",
-        # "policy_feedback": "fuck/3.txt",
-        # "code_feedback": "fuck/3.txt",
-        # "execution_error_feedback": "fuck/3.txt",
+        "initial_system": "fuck/1.txt",
+        "code_output_tip": "fuck/2.txt",
+        "initial_user": "fuck/3.txt",
+        "reward_signature": "fuck/4.txt",
+        "policy_feedback": "fuck/3.txt",
+        "code_feedback": "fuck/3.txt",
+        "execution_error_feedback": "fuck/3.txt",
     })
 
     from Logger import Logger

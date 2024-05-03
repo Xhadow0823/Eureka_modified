@@ -2,7 +2,7 @@ from Prompt import Prompt
 from Chat import Chat
 from Logger import Logger
 
-task = 'FrankaLift'
+task = 'FrankaLift2'
 
 prompt = Prompt(task_name=task, prompt_config={
     "code_output_tip": "prompts/FSM/FSM_code_output_tip.txt",

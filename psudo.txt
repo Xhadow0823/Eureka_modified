@@ -1,0 +1,42 @@
+system: system start
+system: press ctrl+c to break the evaluation and quit this system
+system: prepare the initial prompt and send to llm
+llm: here is the reward function
+system: (1) evaluation or (2) feedback directly ?
+> 1
+
+training...   0%
+training...  50%
+training... 100%
+Done
+system: generating result feedback report
+system: (1) improve or (2) feedback directly ?
+> 1
+
+training...   0%
+training...  50%
+training... 100%
+Done
+
+system: generating result feedback report
+system: (1) improve or (2) feedback directly ?
+> 2
+> rewrite the state 4 reward component
+
+training...   0%
+training...  50%
+training... 100%
+Done
+
+system: generating result feedback report
+system: (1) improve or (2) feedback directly ?
+> 1
+
+training...   0%
+training...  25%
+> [ctrl+c]
+
+system: break the evaluation
+system: (1) improve or (2) feedback directly ?
+> [ctrl+c]
+system: system terminated

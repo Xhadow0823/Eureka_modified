@@ -1,7 +1,7 @@
 from Code import Code
 import subprocess
 import shutil
-from utils import task_name_to_env_name
+from utils import task_name_to_env_name, tensorboard_log_to_dd
 from typing import Literal
 from pynput.keyboard import Listener
 import time
@@ -81,7 +81,7 @@ class Evaluation:
         # C.load_reward_function_from_file("LLMRLT/logs/FrankaLift/24-04-26-13-37-24.json")
         C.load_reward_function(raw_reward_code_str)
         env_code_filepath = f"./LLMRLT/codes/test/{env_name}.py"
-        C.gen_env_code().save(env_code_filepath)
+        C.gen_env_code().save(env_code_filepath)  # TODO: gen env code will raise if reward function not found
 
         ISAAC_ROOT_DIR = "./isaacgymenvs/isaacgymenvs/"
         eval_log = f"./LLMRLT/codes/test/{task}.log"
@@ -123,8 +123,25 @@ class Evaluation:
 
         self.em = em  # temp
 
+def summary_maker(tensorboard_log_dir: str):
+    'input a tensorboard log dir path, output a summary about some index'
+    tag_to_scalars = tensorboard_log_to_dd(tensorboard_log_dir)
+    max_epochs = len(tag_to_scalars["info/epochs"])
+    epoch_step = max(max_epochs // 10, 1)
+    tags_to_summary = ["rewards/iter", ]  # TODO: add more ??
+    reward_component_tags = list(filter(lambda k: k.startswith("r/"), tag_to_scalars.keys()))
+    tags_to_summary.extend( reward_component_tags )
+    summary = {}
+    for tag_name in tags_to_summary:
+        summary[tag_name] = tag_to_scalars[tag_name][::epoch_step]
+    
+    return summary
+    
 
 if __name__ == "__main__":
+    s = summary_maker("policy-2024-06-13_15-48-20/runs/FrankaLift2-2024-06-13_15-48-21/summaries")
+    print(s)
+    exit()
 
     print( task_name_to_env_name("FrankaLift2") )
 

@@ -1,6 +1,10 @@
+# TODO: rewrite all functions here !!!
 import os
 import time
 import re
+from collections import defaultdict
+from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
+from typing import List
 
 def get_current_file_dir():
     return os.path.dirname(os.path.realpath(__file__))
@@ -46,7 +50,7 @@ def remove_import_lines(code_str: str):
     return '\n'.join(lines[start_idx:])
 
 # TODO: make this better and move to Code module
-def get_function_signature(code_string):
+def get_function_signature(code_string):  # TODO: this may raise exception if generated code not correct
     'from eureka'
     import ast
     # Parse the code string into an AST
@@ -65,3 +69,22 @@ def get_function_signature(code_string):
     for arg in function_def.args.args:
         input_lst.append(arg.arg)
     return signature, input_lst
+
+def task_name_to_env_name(task_name):
+    'ApplePieBun -> apple_pie_bun'
+    # 使用正則表達式尋找大寫字母並在前面加上_
+    snake_case_str = re.sub(r'([a-z])([A-Z])', r'\1_\2', task_name)
+    # 將所有字母轉為小寫
+    return snake_case_str.lower()
+
+def tensorboard_log_to_dd(tensorboard_log_dir: str) -> defaultdict:
+    tag_to_scalars = defaultdict(list)
+    
+    ea = EventAccumulator(tensorboard_log_dir) # for reading tf events files (from a dir)
+    ea.Reload()
+    tags = ea.Tags()["scalars"]
+    for tag in tags:
+        events = ea.Scalars(tag) # event object
+        tag_to_scalars[tag] = list(map(lambda e: e.value, events))
+    
+    return tag_to_scalars

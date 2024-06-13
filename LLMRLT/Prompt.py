@@ -12,6 +12,11 @@ class Prompt:
     initial_user: str = ""
     '''the initial user prompt for the task, this will not be changed after __init__'''
 
+    # these are for feedback
+    policy_feedback = None
+    code_feedback = None
+    execution_error_feedback = None
+
     def __init__(self, task_name: str, prompt_config: PromptConfig={}):
         self.task_name = task_name
 
@@ -21,24 +26,35 @@ class Prompt:
         initial_user_path     = f'{prompt_dir}/initial_user.txt'     if "initial_user" not in prompt_config else prompt_config["initial_user"]
         reward_signature_path = f'{prompt_dir}/reward_signature.txt' if "reward_signature" not in prompt_config else prompt_config["reward_signature"]
         initial_system   = file_to_string(f'{get_current_file_dir()}/' + initial_system_path)
-        code_output_tip  = file_to_string(f'{get_current_file_dir()}/' + code_output_tip_path)
+        self.code_output_tip  = file_to_string(f'{get_current_file_dir()}/' + code_output_tip_path)
         initial_user     = file_to_string(f'{get_current_file_dir()}/' + initial_user_path)
         reward_signature = file_to_string(f'{get_current_file_dir()}/' + reward_signature_path)
 
         policy_feedback_path = f'{prompt_dir}/policy_feedback.txt' if "policy_feedback" not in prompt_config else prompt_config["policy_feedback"]
         code_feedback_path   = f'{prompt_dir}/code_feedback.txt'   if "code_feedback" not in prompt_config else prompt_config["code_feedback"]
         execution_error_feedback_path = f'{prompt_dir}/execution_error_feedback.txt' if "execution_error_feedback" not in prompt_config else prompt_config["execution_error_feedback"]
-        policy_feedback          = file_to_string(f'{get_current_file_dir()}/' + policy_feedback_path)
-        code_feedback            = file_to_string(f'{get_current_file_dir()}/' + code_feedback_path)
-        execution_error_feedback = file_to_string(f'{get_current_file_dir()}/' + execution_error_feedback_path)
+        self.policy_feedback          = file_to_string(f'{get_current_file_dir()}/' + policy_feedback_path)
+        self.code_feedback            = file_to_string(f'{get_current_file_dir()}/' + code_feedback_path)
+        self.execution_error_feedback = file_to_string(f'{get_current_file_dir()}/' + execution_error_feedback_path)
         
         task_dir = f'{get_current_file_dir()}/tasks/{task_name}/'
         task_obs  = file_to_string(f"{task_dir}/obs.py")
         task_desc = file_to_string(f"{task_dir}/desc.txt")
 
-        self.initial_system = initial_system.format(task_reward_signature_string=reward_signature) + code_output_tip
+        self.initial_system = initial_system.format(task_reward_signature_string=reward_signature) + self.code_output_tip
         self.initial_user   = initial_user.format(task_obs_code_string=task_obs, task_description=task_desc)
     
+    def gen_prompt_after_train(self, training_summary: str, human_feedback=None):
+        return  self.policy_feedback + \
+                training_summary + '\n' + \
+                (self.code_feedback if human_feedback is None else (human_feedback+'\n')) + \
+                self.code_output_tip
+
+    def gen_prompt_after_error(self, error_msg: str, human_feedback=None):
+        return  self.execution_error_feedback.format(traceback_msg=error_msg) + \
+                ('' if human_feedback is None else (human_feedback+'\n')) + \
+                self.code_output_tip
+
     def get_prompts(self):
         ''' just for testing'''
         return [
@@ -51,14 +67,18 @@ if __name__ == "__main__":
     task = "FrankaLift"  # global, only for testing
 
     p = Prompt(task, prompt_config={
-        "initial_system": "fuck/1.txt",
-        "code_output_tip": "fuck/2.txt",
-        "initial_user": "fuck/3.txt",
-        "reward_signature": "fuck/4.txt",
-        "policy_feedback": "fuck/3.txt",
-        "code_feedback": "fuck/3.txt",
-        "execution_error_feedback": "fuck/3.txt",
+        # "initial_system": "fuck/1.txt",
+        # "code_output_tip": "fuck/2.txt",
+        # "initial_user": "fuck/3.txt",
+        # "reward_signature": "fuck/4.txt",
+        # "policy_feedback": "fuck/3.txt",
+        # "code_feedback": "fuck/3.txt",
+        # "execution_error_feedback": "fuck/3.txt",
     })
+
+    print( p.gen_prompt_after_train("aasdf:[ ], efeiogoiej: []", "doggo") )
+    print( p.gen_prompt_after_error("nonononononononono", 'kittyy') )
+    exit()
 
     from Logger import Logger
     prompt_logger = Logger(task_name=task)

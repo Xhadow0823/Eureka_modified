@@ -68,6 +68,62 @@ class EvalMonitor:
     def set_finish_flag(self):
         self.state = "finish"
 
+class Evaluation:
+    em = None
+    def __init__(self, **kargs):
+        task = kargs["task"]
+        env_name = kargs["env_name"]
+        raw_reward_code_str = kargs["raw_reward_code"]
+
+        C = Code()
+        C.load_env_from_file(f"LLMRLT/tasks/{task}/env.py")
+        C.load_obs_function_from_file(f"LLMRLT/tasks/{task}/obs.py")
+        # C.load_reward_function_from_file("LLMRLT/logs/FrankaLift/24-04-26-13-37-24.json")
+        C.load_reward_function(raw_reward_code_str)
+        env_code_filepath = f"./LLMRLT/codes/test/{env_name}.py"
+        C.gen_env_code().save(env_code_filepath)
+
+        ISAAC_ROOT_DIR = "./isaacgymenvs/isaacgymenvs/"
+        eval_log = f"./LLMRLT/codes/test/{task}.log"
+        
+        shutil.copy(env_code_filepath, ISAAC_ROOT_DIR+f"/tasks/{env_name}.py")
+        
+        em = None
+        with open(eval_log, 'w') as f:
+            process = subprocess.Popen(['python', '-u', f'{ISAAC_ROOT_DIR}/train.py',  
+                                        'hydra/output=subprocess',
+                                        f'task={task}',
+                                        f'headless={True}', 'force_render=False',
+                                        f'max_iterations={10}'],
+                                        stdout=f, stderr=f)
+            em = EvalMonitor(eval_log)
+            while em.tensorboard_log_dir == None:
+                em.find_tensorboard_dir()
+                time.sleep(1)
+                if process.poll():
+                    em.set_error_flag()
+                    break
+            print(f"tensorboard log dir: {em.tensorboard_log_dir}")
+            while em.training_progress_str==None or eval(em.training_progress_str) < 1.0:
+                em.find_training_progress()
+                # print(f"line progress: {em.last_line_idx}")
+                print(f"\rtrain progress: {em.training_progress_str}", end='')
+                time.sleep(1)
+                if process.poll():
+                    em.set_error_flag()
+                    break
+            print(f"\nfinish")
+            
+            if em.state == "error":
+                em.find_error_msg()
+                print(em.error_msg)
+            else:
+                em.set_finish_flag()
+        process.communicate()
+
+        self.em = em  # temp
+
+
 if __name__ == "__main__":
 
     print( task_name_to_env_name("FrankaLift2") )

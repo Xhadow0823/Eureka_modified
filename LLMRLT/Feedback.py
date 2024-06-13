@@ -1,5 +1,7 @@
 from typing import List
 import re
+import time
+from pynput.keyboard import Listener
 
 def select(options: List[str]):
     '''list all options and prompt user to select and return the selected idx'''
@@ -24,6 +26,7 @@ def select(options: List[str]):
             continue
 
         return result
+    raise Exception("bad select over max try")
 
 def what_do_you_want():
     result_pack = {
@@ -50,6 +53,28 @@ def what_do_you_want():
     
     return result_pack
 
+def press_any_key_to(sec):
+    is_key_pressed = False
+    
+    def on_press(key):
+        nonlocal is_key_pressed
+        is_key_pressed = True
+        # print('{0} pressed'.format(key))  # toggle this line to debug
+        return False # return false to terminate this hook
+    
+    with Listener(on_press=on_press) as listener:
+        # listener.start()
+        for i in reversed(range(1, sec+1)):
+            print(f"\rpress any key to select action ({i}s)\t", end='')
+            if is_key_pressed:
+                break
+            time.sleep(0.5)
+            if is_key_pressed:
+                break
+            time.sleep(0.5)
+        listener.stop()
+    return is_key_pressed
+    
 
 if __name__ == "__main__":
 
@@ -63,6 +88,14 @@ if __name__ == "__main__":
     # ])
     # print(f"{idx} is your idx")
 
+    
+    is_to_select = press_any_key_to(5)
+    if is_to_select:
+        print("What do you want")
+    else:
+        print("BYE")
+    
+    exit()
     
     res = what_do_you_want()
     print( res )

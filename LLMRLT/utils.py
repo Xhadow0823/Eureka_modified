@@ -1,3 +1,4 @@
+# TODO: rewrite all functions here !!!
 import os
 import time
 import re
@@ -65,3 +66,10 @@ def get_function_signature(code_string):
     for arg in function_def.args.args:
         input_lst.append(arg.arg)
     return signature, input_lst
+
+def task_name_to_env_name(task_name):
+    'ApplePieBun -> apple_pie_bun'
+    # 使用正則表達式尋找大寫字母並在前面加上_
+    snake_case_str = re.sub(r'([a-z])([A-Z])', r'\1_\2', task_name)
+    # 將所有字母轉為小寫
+    return snake_case_str.lower()

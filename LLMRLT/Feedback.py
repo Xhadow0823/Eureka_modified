@@ -53,7 +53,8 @@ def what_do_you_want():
     
     return result_pack
 
-def press_any_key_to(sec):
+def wait_any_key_for(sec: int, action_to_do: str="do nothing") -> bool:
+    'will wait if any key pressed for seconds, return bool'
     is_key_pressed = False
     
     def on_press(key):
@@ -65,7 +66,7 @@ def press_any_key_to(sec):
     with Listener(on_press=on_press) as listener:
         # listener.start()
         for i in reversed(range(1, sec+1)):
-            print(f"\rpress any key to select action ({i}s)\t", end='')
+            print(f"\rpress any key to {action_to_do} ({i}s)\t", end='')
             if is_key_pressed:
                 break
             time.sleep(0.5)
@@ -73,6 +74,7 @@ def press_any_key_to(sec):
                 break
             time.sleep(0.5)
         listener.stop()
+    print()
     return is_key_pressed
     
 
@@ -89,7 +91,7 @@ if __name__ == "__main__":
     # print(f"{idx} is your idx")
 
     
-    is_to_select = press_any_key_to(5)
+    is_to_select = wait_any_key_for(5)
     if is_to_select:
         print("What do you want")
     else:

@@ -74,6 +74,7 @@ class Evaluation:
         task = kargs["task"]
         env_name = kargs["env_name"]
         raw_reward_code_str = kargs["raw_reward_code"]
+        max_epochs = kargs["max_epochs"]
 
         C = Code()
         C.load_env_from_file(f"LLMRLT/tasks/{task}/env.py")
@@ -94,7 +95,7 @@ class Evaluation:
                                         'hydra/output=subprocess',
                                         f'task={task}',
                                         f'headless={True}', 'force_render=False',
-                                        f'max_iterations={10}'],
+                                        f'max_iterations={max_epochs}'],
                                         stdout=f, stderr=f)
             em = EvalMonitor(eval_log)
             while em.tensorboard_log_dir == None:

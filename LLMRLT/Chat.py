@@ -64,7 +64,7 @@ class Usage:
 
 class Chat:
     MAX_ATTEMPT = 100
-    GPT_MODEL="gpt-4-0125-preview"  # GPT_MODEL="gpt-4-0314"
+    GPT_MODEL="gpt-4o"  # GPT_MODEL="gpt-4-0125-preview"  # GPT_MODEL="gpt-4-0314"  # NOTE: gpt-4-0125 變得很笨，目前改用 gpt-4o
     
     ##### GPT configs #####
     temperature = 1.0

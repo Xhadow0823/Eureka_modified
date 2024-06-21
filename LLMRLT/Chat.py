@@ -11,18 +11,27 @@ class MessageDict(TypedDict):
 class Messages:
     _all_messages: List[MessageDict]
     '''the buffer that storing whole chat history'''
-    _max_queue_length: int = -1
-    '''the max length of _all_messages the queue'''
+    _max_queue_length: int = 5
+    '''=5, the max length of _all_messages the queue (for GPT API)'''
 
     def __init__(self):
         self.reset()
     def reset(self):
         self._all_messages = []
-        self._max_queue_length = -1
+        self._max_queue_length = 5
     def log(self, message_dict_list: List[MessageDict]):
         self._all_messages.extend(message_dict_list)
     def get_all(self)->List[MessageDict]:
+        'this will return ALL messages, DO NOT USE FOR GPT API'
         return self._all_messages.copy()
+    def get_all_for_chat(self)->List[MessageDict]:
+        'this is for Chat module, size will constrain in max_queue_length'
+        buffer = self.get_all()
+        if len(buffer) > self._max_queue_length:
+            buffer = [ self._all_messages[0] ]
+            buffer.extend( self._all_messages[-(self._max_queue_length-1):] )
+        assert len(buffer) <= self._max_queue_length, "message queue overflow !!"
+        return buffer
     def load(self, file_path: str):
         conversation: List[MessageDict] = None
         try:
@@ -96,7 +105,7 @@ class Chat:
         if self.system_content == None:
             self.set_system_content()
 
-        messages = self._messages.get_all()
+        messages = self._messages.get_all_for_chat()
         user_content_dict: MessageDict = {"role": "user", "content": content}
         messages.append(user_content_dict)
 

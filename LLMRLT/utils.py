@@ -88,3 +88,17 @@ def tensorboard_log_to_dd(tensorboard_log_dir: str) -> defaultdict:
         tag_to_scalars[tag] = list(map(lambda e: e.value, events))
     
     return tag_to_scalars
+
+def register_SIGINT_to(func_to_call, then_exit=True):
+    import signal
+    import sys
+    def signal_handler(sig, frame):
+        print('[Ctrl+C]')
+        func_to_call()
+        if then_exit:
+            sys.exit(0)
+    signal.signal(signal.SIGINT, signal_handler)
+    # signal.pause()
+
+def pretty_dict_maker(d):
+    return str(d).replace("], ", "], \n")

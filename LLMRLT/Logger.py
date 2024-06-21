@@ -42,10 +42,12 @@ class Logger:
     def get_log_path_n_name(self):
         return self.log_file_path, self.log_file_name
     
-    def save_conversation(self, conversation: List[Dict]):
+    def save_conversation(self, conversation: List[Dict]) -> str:
+        'save the conversation as a json file and then return the path of json'
         json_file = f"{self.log_file_path}/{self.log_file_name}.json"
         with open(json_file, "w", encoding='utf-8') as f:
             json.dump(conversation, f, ensure_ascii=False, indent=2)
+        return json_file
     
 
 if __name__ == "__main__":

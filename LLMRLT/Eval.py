@@ -123,6 +123,9 @@ class Evaluation:
         process.communicate()
 
         self.em = em  # temp
+    def get_result(self) -> EvalMonitor:
+        'return self.em as evaluation result'
+        return self.em
 
 def summary_maker(tensorboard_log_dir: str):
     'input a tensorboard log dir path, output a summary about some index'

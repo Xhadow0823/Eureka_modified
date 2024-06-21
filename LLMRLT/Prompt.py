@@ -54,6 +54,12 @@ class Prompt:
         return  self.execution_error_feedback.format(traceback_msg=error_msg) + \
                 ('' if human_feedback is None else (human_feedback+'\n')) + \
                 self.code_output_tip
+    
+    def gen_prompt_for_regen(self, current_prompt, human_feedback):
+        'this function will return a new prompta with human_feedback using current prompt'
+        return  current_prompt + '\n' + \
+                "Here are some tips for writing a better reward function code from the human expert: \n" + \
+                human_feedback.strip() + '\n'
 
     def get_prompts(self):
         ''' just for testing'''

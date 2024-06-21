@@ -1,0 +1,12 @@
+This task is to use the end effector to hold the cubeA, then make the cubeA stack on the cubeB.
+There are 7 state in this task, state 0 , state 1, state 2, state 3, state 4, state 5, state 6.
+The current state information for each agent is been stored in self.FSM .
+
+The environment and reward function are devided into several states:
+state 0 means the end effector is going to reach the position of the cubeA.
+state 1 means the end effector is going to hold the cubeA.
+state 2 means the end effector is going to lift the cubeA.
+state 3 means the end effector is going to make cubeA been move to above the cubeB.
+state 4 means the end effector is going to make cubeA been move to above the cubeB and very close to cubeB.
+state 5 means the agent is going to open the end effector to release cubeA.
+state 6 means the agent has stack the cubeA on the cubeB and make end effector far away from the two cubes.

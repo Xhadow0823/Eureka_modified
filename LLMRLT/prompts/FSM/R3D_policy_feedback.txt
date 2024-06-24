@@ -1,0 +1,1 @@
+We trained a RL policy using the provided reward function code and tracked the values of each sub-task reward components, BSR(Base Sub-task Reward) and SR(Success Rate) in the reward function, the maximum, mean, minimum values encountered:

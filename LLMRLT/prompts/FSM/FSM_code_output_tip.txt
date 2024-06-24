@@ -1,14 +1,13 @@
 The output of the reward function should consist of two items:
     (1) the total reward,
     (2) a dictionary of each individual reward component.
-The reward function and the environment are devided into several states, there is some points you should know:
-    (1) each state will be set in the environment, you should not worry about the condition for going into the state or the transition among states.
-    (2) reward component for each state's value should be between the -1 ~ 1, so it is good to use torch.tanh(), 1/(0.5+ ax^2) or torch.clip()
 The code output should be formatted as a python code string: "```python ... ```".
 
 Some helpful tips for writing the reward function code:
-    (1) You may find it helpful to normalize the reward to a fixed range by applying transformations like torch.tanh to the overall reward or its components
-    (2) If you choose to transform a reward component, then you must also introduce a temperature parameter inside the transformation function; this parameter must be a named variable in the reward function and it must not be an input variable. Each transformed reward component should have its own temperature variable. e.g. state0_reward = torch.tanh(a*dist)
-    (3) Make sure the type of each input variable is correctly specified; a float input variable should not be specified as torch.Tensor
-    (4) If there is a "state" parameter in reward function, you may use the torch.where to provide different reward to different state. And note that the state parameter is a torch.Tensor, do not threat like a float.
-    (5) Most importantly, the reward code's input variables must contain only attributes of the provided environment class definition (namely, variables that have prefix self.). Under no circumstance can you introduce new input variables.
+    + The whole task will be decompose into several "sub-tasks", and the reward function will be decompose into several sub-reward functions called "sub-task reward components".
+    + Each sub-task reward component is continuous and smooth, DO NOT use binary conditions or specific thresholds.
+    + Each sub-task reward component must range 0~1.
+    + The final reward is the sum of all sub-task reward components plus the BSR(Base Sub-task Reward).
+    + For certain tasks, additional rewards may be given upon reaching the final sub-task. The decision to give additional rewards should be based on the task description.
+    + Make sure the type of each input variable is correctly specified; a float input variable should not be specified as torch.Tensor .
+    + Most importantly, the reward code's input variables must contain only attributes of the provided environment class definition (namely, variables that have prefix self.). Under no circumstance can you introduce new input variables.

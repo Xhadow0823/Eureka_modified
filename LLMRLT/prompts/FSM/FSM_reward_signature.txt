@@ -1,27 +1,30 @@
 @torch.jit.script
-def compute_reward(object_pos: torch.Tensor, goal_pos: torch.Tensor) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
+def compute_reward(object_pos: torch.Tensor, goal_pos: torch.Tensor, ...) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
+    # initialize
     reward = torch.zeros_like(...)
     reward_components = {}
 
-    # this section compute the reward for state 0
+    # this section compute the reward component for state 0
     # === state 0 reward ===
-    a0 = ...
-    b0 = ...
-    state0_reward = torch.where(states["FSM"] == 0, (a0 + b0), torch.zeros_like(...))
+    approach_reward = ...   # this is a reward component for making agent approaching...
+    state0_reward = torch.where(FSM == 0, approach_reward, torch.zeros_like(...))
 
-    # this section compute the reward for state 1
+    # this section compute the reward component for state 1
     # === state 1 reward ===
-    state1_reward = torch.where(states["FSM"] == 1, (a0 - b0), torch.zeros_like(...))
+    close_gripper_reward = torch.tanh(temp_state_1 * -a_gripper)
+    state1_reward = torch.where(FSM == 1, close_gripper_reward, torch.zeros_like(...))
     ...
 
-    # === state-up reward (BSR) ===
-    BSR = states["FSM"].to(torch.float)  # this BSR reward is needed for all task
+    # === BSR ===
+    BSR = FSM.to(torch.float)  # important: this BSR reward is needed for all task
 
-    # this section sum up all state reward into total reward
-    reward = state0_reward + state1_reward + BSR  # NOTE: we add the BSR into the total_reward is for encouraging agent get higher state as possible
+    # this section sum up all state reward components and BSR into total reward
+    reward = state0_reward + state1_reward + ... + BSR
+
     # this section storage each state reward into the dict
-    reward_components["r/state0"] = state0_reward.mean()  # note the state reward is tensor, we have to do .mean() to turn it into float for storage in dict
+    reward_components["r/state0"] = state0_reward.mean()  # note that the state reward is tensor, we have to do .mean() to turn it into float for storage in dict
     reward_components["r/state1"] = state1_reward.mean()
-    reward_components["r/BSR"] = BSR.mean()
+    ...
+    reward_components["r/BSR"] = BSR.mean()  # save BSR into reward_components dict is important
 
     return reward, reward_components

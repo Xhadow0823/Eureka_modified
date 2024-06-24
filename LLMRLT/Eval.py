@@ -2,7 +2,7 @@ from Code import Code
 import subprocess
 import shutil
 from utils import task_name_to_env_name, tensorboard_log_to_dd
-from typing import Literal
+from typing import Literal, Dict, List
 from pynput.keyboard import Listener
 import time
 import re
@@ -127,20 +127,30 @@ class Evaluation:
         'return self.em as evaluation result'
         return self.em
 
-def summary_maker(tensorboard_log_dir: str):
-    'input a tensorboard log dir path, output a summary about some index'
+def extract_tags_to_dict(tensorboard_log_dir: str) -> Dict[str, List[float]]:
+    'input a tensorboard log dir path, output a summary dict about some tags'
     tag_to_scalars = tensorboard_log_to_dd(tensorboard_log_dir)
     max_epochs = len(tag_to_scalars["info/epochs"])
     epoch_step = max(max_epochs // 10, 1)
     tags_to_summary = ["rewards/iter", ]  # TODO: add more ??
     reward_component_tags = list(filter(lambda k: k.startswith("r/"), tag_to_scalars.keys()))
     tags_to_summary.extend( reward_component_tags )
-    summary = {}
+    summary_dict = {}
     for tag_name in tags_to_summary:
-        summary[tag_name] = tag_to_scalars[tag_name][::epoch_step]
-    
+        summary_dict[tag_name] = tag_to_scalars[tag_name][::epoch_step]
+    return summary_dict
+
+def summary_maker(tensorboard_log_dir: str) -> str:
+    'input a tensorboard log dir path, output a formated summary string for policy feedback'
+    summary_dict = extract_tags_to_dict(tensorboard_log_dir)
+    summary = ""
+    for tag_name, datalist in summary_dict.items():
+        line_for_a_tag = f"{tag_name}: {datalist}, min: {min(datalist)}, max: {max(datalist)}\n"
+        summary += line_for_a_tag
+
     return summary
-    
+
+
 
 if __name__ == "__main__":
     s = summary_maker("policy-2024-06-13_15-48-20/runs/FrankaLift2-2024-06-13_15-48-21/summaries")

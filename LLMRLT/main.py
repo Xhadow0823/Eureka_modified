@@ -5,13 +5,18 @@ from Eval import Evaluation, summary_maker
 from Feedback import wait_any_key_for, select
 from utils import task_name_to_env_name, register_SIGINT_to, pretty_dict_maker
 
+
+# 注意！ 現在的 PROMPT 超爛，記得改回來再繼續測試並設計新 PROMPT！！
+
 task = 'FrankaCubeStackRRR'
 env_name = task_name_to_env_name(task)
-max_epochs = 800
+max_epochs = 300
 
 prompt = Prompt(task_name=task, prompt_config={
-    "code_output_tip": "prompts/FSM/FSM_code_output_tip.txt",
-    "reward_signature": "prompts/FSM/FSM_reward_signature.txt"
+    "code_output_tip":  "prompts/FSM/FSM_code_output_tip.txt",
+    "reward_signature": "prompts/FSM/FSM_reward_signature.txt",
+    "code_feedback":    "prompts/FSM/R3D_code_feedback.txt",
+    "policy_feedback":  "prompts/FSM/R3D_policy_feedback.txt",
 })
 chat = Chat()
 chat_logger = Logger(task_name=task)
@@ -42,12 +47,13 @@ while True:
 
     logger.info(f"TOTAL TOKEN: {chat.get_total_usage()}")
 
-    is_any_key_pressed = wait_any_key_for(3, "select action (or system will do evaluation)")
+    is_any_key_pressed = wait_any_key_for(5, "select action (or system will do evaluation)")
     if is_any_key_pressed:
         selected = select([
             "do evaluation",
             "input human feedback and re-generate again",
             "re-generate again",
+            "set max_epochs",
         ])
         if selected == 1:
             human_feedback = input("Input your feedback: ")
@@ -58,11 +64,18 @@ while True:
         elif selected == 2:
             logger.info(f"USER SELECT: RE-GENERATE AGAIN")
             continue
+        elif select == 3:
+            try:
+                temp = int(input(f"input max_epoch (now is {max_epochs}): "))
+                max_epochs = temp
+                print(f"max_epochs is {max_epochs}")
+            except:
+                print("input error")
 
     logger.info(f"EVALUATION START")
-    logger.info(f"EVALUATION INFO: max:epochs={max_epochs}")
+    logger.info(f"EVALUATION INFO: max_epochs={max_epochs}")
     eval_result = Evaluation(task=task, env_name=env_name, raw_reward_code=resp, max_epochs=max_epochs).get_result()
-    eval_summary = {}
+    eval_summary = ""
     human_feedback = None
 
     if eval_result.state == "error":
@@ -71,7 +84,7 @@ while True:
     else:
         logger.info(f"TENSORBOARD LOG DIR: {eval_result.tensorboard_log_dir}")
         eval_summary = summary_maker(eval_result.tensorboard_log_dir)
-        logger.info(f"EVALUATION SUMMARY: {pretty_dict_maker(eval_summary)}")
+        logger.info(f"EVALUATION SUMMARY: \n{eval_summary}")
     logger.info(f"EVALUATION FINISH")
 
     is_any_key_pressed = wait_any_key_for(5, "select action (or system will auto improve)")
@@ -95,7 +108,7 @@ while True:
     if eval_result.state == "error":
         next_prompt = prompt.gen_prompt_after_error(eval_result.error_msg, human_feedback)
     else:
-        next_prompt = prompt.gen_prompt_after_train(str(eval_summary), human_feedback)
+        next_prompt = prompt.gen_prompt_after_train(eval_summary, human_feedback)
     # END OF MAIN WHILE LOOP
 
 logger.info("DEMO END")

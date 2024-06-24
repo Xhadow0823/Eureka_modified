@@ -44,10 +44,10 @@ class Prompt:
         self.initial_system = initial_system.format(task_reward_signature_string=reward_signature) + self.code_output_tip
         self.initial_user   = initial_user.format(task_obs_code_string=task_obs, task_description=task_desc)
     
-    def gen_prompt_after_train(self, training_summary: str, human_feedback=None):
+    def gen_prompt_after_train(self, training_summary: str, BSR_analysis="", human_feedback=None):
         return  self.policy_feedback + \
                 training_summary + '\n' + \
-                (self.code_feedback if human_feedback is None else (human_feedback+'\n')) + \
+                (self.code_feedback.format(BSR_analysis=BSR_analysis) if human_feedback is None else (human_feedback+'\n')) + \
                 self.code_output_tip
 
     def gen_prompt_after_error(self, error_msg: str, human_feedback=None):

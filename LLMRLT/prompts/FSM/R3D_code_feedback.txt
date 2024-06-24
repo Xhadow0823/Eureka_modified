@@ -1,10 +1,10 @@
 Please carefully analyze the evaluation result and provide a new, improved reward function that can better solve the task. Some helpful tips for analyzing the policy feedback:
 + For the BSR(Base Sub-task Reward): 
 	+ If the BSR are always near zero, rewrite the entire reward function.
-	+ If the max BSR can not reach the latest sub-task, some sub-task reward could be too difficult to learn.
+	+ {BSR_analysis}
 + For the SR(Success Rate): 
 	+ If the success rate(SR) are always near zero, rewrite the entire reward function.
-	+ if the success rate(SR) can not reach 0.5, the user have to increase the task max-epochs for evaluation.
+	+ if the success rate(SR) can not reach 0.5, the user have to increase the task's max-epochs for evaluation.
 + For each sub-task reward(state n): 
 	+ if sub-task reward of state n is always near zero, re-design the sub-task reward.
 	+ If the min value of any sub-task reward is less than 0, the sub-task reward range is illegal. Modify the sub-task reward to range from 0 to 1.

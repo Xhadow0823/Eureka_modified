@@ -50,10 +50,10 @@ while True:
     is_any_key_pressed = wait_any_key_for(5, "select action (or system will do evaluation)")
     if is_any_key_pressed:
         selected = select([
-            "do evaluation",
-            "input human feedback and re-generate again",
-            "re-generate again",
-            "set max_epochs",
+            "do evaluation",   # (0)
+            "input human feedback and re-generate again",  # (1)
+            "re-generate again",  # (2)
+            "set max_epochs",  # (3)
         ])
         if selected == 1:
             human_feedback = input("Input your feedback: ")
@@ -64,7 +64,7 @@ while True:
         elif selected == 2:
             logger.info(f"USER SELECT: RE-GENERATE AGAIN")
             continue
-        elif select == 3:
+        elif selected == 3:
             try:
                 temp = int(input(f"input max_epoch (now is {max_epochs}): "))
                 max_epochs = temp
@@ -74,7 +74,7 @@ while True:
 
     logger.info(f"EVALUATION START")
     logger.info(f"EVALUATION INFO: max_epochs={max_epochs}")
-    eval_result = Evaluation(task=task, env_name=env_name, raw_reward_code=resp, max_epochs=max_epochs).get_result()
+    eval_result = Evaluation(task=task, env_name=env_name, raw_reward_code=resp, max_epochs=max_epochs)
     eval_summary = ""
     human_feedback = None
 
@@ -83,7 +83,7 @@ while True:
         logger.info(f"ERROR MSG: {eval_result.error_msg}")
     else:
         logger.info(f"TENSORBOARD LOG DIR: {eval_result.tensorboard_log_dir}")
-        eval_summary = summary_maker(eval_result.tensorboard_log_dir)
+        eval_summary = eval_result.get_eval_summary()
         logger.info(f"EVALUATION SUMMARY: \n{eval_summary}")
     logger.info(f"EVALUATION FINISH")
 
@@ -108,7 +108,8 @@ while True:
     if eval_result.state == "error":
         next_prompt = prompt.gen_prompt_after_error(eval_result.error_msg, human_feedback)
     else:
-        next_prompt = prompt.gen_prompt_after_train(eval_summary, human_feedback)
+        BSR_analysis = eval_result.gen_BSR_analysis_str()
+        next_prompt = prompt.gen_prompt_after_train(eval_summary, BSR_analysis=BSR_analysis, human_feedback=human_feedback)
     # END OF MAIN WHILE LOOP
 
 logger.info("DEMO END")

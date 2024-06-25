@@ -90,6 +90,7 @@ def tensorboard_log_to_dd(tensorboard_log_dir: str) -> defaultdict:
     return tag_to_scalars
 
 def register_SIGINT_to(func_to_call, then_exit=True):
+    'call func_to_call() when catch ctrl+c'
     import signal
     import sys
     def signal_handler(sig, frame):

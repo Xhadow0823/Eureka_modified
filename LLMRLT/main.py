@@ -1,10 +1,9 @@
 from Prompt import Prompt
 from Chat import Chat
 from Logger import Logger
-from Eval import Evaluation, summary_maker
+from Eval import Evaluation
 from Feedback import wait_any_key_for, select
-from utils import task_name_to_env_name, register_SIGINT_to, pretty_dict_maker
-
+from utils import task_name_to_env_name, register_SIGINT_to
 
 # 注意！ 現在的 PROMPT 超爛，記得改回來再繼續測試並設計新 PROMPT！！
 
@@ -13,10 +12,10 @@ env_name = task_name_to_env_name(task)
 max_epochs = 300
 
 prompt = Prompt(task_name=task, prompt_config={
-    "code_output_tip":  "prompts/FSM/FSM_code_output_tip.txt",
-    "reward_signature": "prompts/FSM/FSM_reward_signature.txt",
-    "code_feedback":    "prompts/FSM/R3D_code_feedback.txt",
-    "policy_feedback":  "prompts/FSM/R3D_policy_feedback.txt",
+    "code_output_tip":  "prompts/R3D/R3D_code_output_tip.txt",
+    "reward_signature": "prompts/R3D/R3D_reward_signature.txt",
+    "code_feedback":    "prompts/R3D/R3D_code_feedback_2.txt",
+    "policy_feedback":  "prompts/R3D/R3D_policy_feedback.txt",
 })
 chat = Chat()
 chat_logger = Logger(task_name=task)
@@ -53,7 +52,7 @@ while True:
             "do evaluation",   # (0)
             "input human feedback and re-generate again",  # (1)
             "re-generate again",  # (2)
-            "set max_epochs",  # (3)
+            "set max_epochs and do evaluation",  # (3)
         ])
         if selected == 1:
             human_feedback = input("Input your feedback: ")
@@ -66,11 +65,13 @@ while True:
             continue
         elif selected == 3:
             try:
-                temp = int(input(f"input max_epoch (now is {max_epochs}): "))
+                temp = int(input(f"input max_epoch (current is {max_epochs}): "))
                 max_epochs = temp
-                print(f"max_epochs is {max_epochs}")
+                logger.info(f"USER SELECT: SET max_epochs={max_epochs}")
+                print(f"max_epochs is {max_epochs} now")
             except:
                 print("input error")
+            pass
 
     logger.info(f"EVALUATION START")
     logger.info(f"EVALUATION INFO: max_epochs={max_epochs}")
@@ -108,8 +109,8 @@ while True:
     if eval_result.state == "error":
         next_prompt = prompt.gen_prompt_after_error(eval_result.error_msg, human_feedback)
     else:
-        BSR_analysis = eval_result.gen_BSR_analysis_str()
-        next_prompt = prompt.gen_prompt_after_train(eval_summary, BSR_analysis=BSR_analysis, human_feedback=human_feedback)
+        next_prompt = prompt.gen_prompt_after_train(eval_summary, format_dict=eval_result.get_code_feedback_info(), human_feedback=human_feedback)
+        # BSR_analysis = eval_result.gen_BSR_analysis_str()
     # END OF MAIN WHILE LOOP
 
 logger.info("DEMO END")

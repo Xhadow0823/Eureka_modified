@@ -4,7 +4,11 @@ import time
 from pynput.keyboard import Listener
 
 def select(options: List[str]):
-    '''list all options and prompt user to select and return the selected idx'''
+    '''
+    list all options and prompt user to select and return the selected idx \n
+    (1) the first action -> this will return 0 \n
+    (2) the second action -> this will return 1
+    '''
     result: int = None
 
     for _ in range(99):
@@ -54,7 +58,7 @@ def what_do_you_want():
     return result_pack
 
 def wait_any_key_for(sec: int, action_to_do: str="do nothing") -> bool:
-    'will wait if any key pressed for seconds, return bool'
+    'will wait if any key pressed in seconds, return bool'
     is_key_pressed = False
     
     def on_press(key):

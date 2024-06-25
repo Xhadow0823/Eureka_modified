@@ -15,7 +15,9 @@ class FrankaLift2(VecTask):
         self.eef_pos = self.states["eef_pos"]
         self.eef_quat = self.states["eef_quat"]
         self.cubeA_pos_relative = self.states["cubeA_pos_relative"]  # this is the pos of cubeA minus the pos of eef
-        self.a_gripper = self.actions[:, -1]  # this is the action value of gripper, <= 0 means close the gripper
+        self.cubeA_height = self.states["cubeA_height"]  # IMPORTANT: this the height of cubeA (height from table surface)
+        self.a_gripper = self.actions[:, -1]     # IMPORTANT: this is the action value of gripper, a_gripper <= 0 means the gripper is closing
+
         self.arm_base_pos = torch.tensor([-0.45, 0.0, 1.125], dtype=torch.float, device=self.device)  # this is the base position of Franka arm
 
         self.FSM = self.states["FSM"]  # this is a torch.tensor dtype=long for store the current state of each agent

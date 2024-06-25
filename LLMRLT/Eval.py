@@ -96,12 +96,19 @@ class EvalMonitor:
                 elif tag_name.startswith("r/state"):
                     self.last_st = max(self.last_st, int(tag_name.replace("r/state", '')))
         return self.eval_summary_str
-    def gen_BSR_analysis_str(self) -> str:
-        'return sub-task n/m, ...'
-        analysis = f"In the evaluation, the highest achievable sub-task index is sub-task {self.highest_achievable_st}, while the last sub-task in the entire task is sub-task {self.last_st}. "
-        analysis += f"Please consider redesigning the reward functions for sub-tasks {self.highest_achievable_st} through {self.last_st}. "
-        return analysis
-    
+    # def gen_BSR_analysis_str(self) -> str:
+    #     'return sub-task n/m, ...'
+    #     analysis = f"In the evaluation, the highest achievable sub-task index is sub-task {self.highest_achievable_st}, while the last sub-task in the entire task is sub-task {self.last_st}. "
+    #     analysis += f"Please consider redesigning the reward functions for sub-tasks {self.highest_achievable_st} through {self.last_st}. "
+    #     return analysis
+    def get_code_feedback_info(self) -> dict:
+        info_dict = {
+            "highest_achievable_st": self.highest_achievable_st,
+            "last_st": self.last_st,
+            "highest_achievable_st-1": self.highest_achievable_st-1,
+        }
+        return info_dict
+
 def Evaluation(**kargs) -> EvalMonitor:
     '''
     input task, env_name, raw_reward_code and max_epochs \n

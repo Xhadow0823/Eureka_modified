@@ -44,10 +44,10 @@ class Prompt:
         self.initial_system = initial_system.format(task_reward_signature_string=reward_signature) + self.code_output_tip
         self.initial_user   = initial_user.format(task_obs_code_string=task_obs, task_description=task_desc)
     
-    def gen_prompt_after_train(self, training_summary: str, BSR_analysis="", human_feedback=None):
+    def gen_prompt_after_train(self, training_summary: str, format_dict, human_feedback=None):
         return  self.policy_feedback + \
                 training_summary + '\n' + \
-                (self.code_feedback.format(BSR_analysis=BSR_analysis) if human_feedback is None else (human_feedback+'\n')) + \
+                (self.code_feedback.format(**format_dict) if human_feedback is None else (human_feedback+'\n')) + \
                 self.code_output_tip
 
     def gen_prompt_after_error(self, error_msg: str, human_feedback=None):
@@ -71,25 +71,11 @@ class Prompt:
 
 if __name__ == "__main__":
     task = "FrankaLift"  # global, only for testing
-
-    p = Prompt(task, prompt_config={
-        # "initial_system": "fuck/1.txt",
-        # "code_output_tip": "fuck/2.txt",
-        # "initial_user": "fuck/3.txt",
-        # "reward_signature": "fuck/4.txt",
-        # "policy_feedback": "fuck/3.txt",
-        # "code_feedback": "fuck/3.txt",
-        # "execution_error_feedback": "fuck/3.txt",
-    })
-
-    print( p.gen_prompt_after_train("aasdf:[ ], efeiogoiej: []", "doggo") )
-    print( p.gen_prompt_after_error("nonononononononono", 'kittyy') )
+    p = Prompt(task, prompt_config={})
     exit()
 
     from Logger import Logger
     prompt_logger = Logger(task_name=task)
     logger = prompt_logger.getLogger()
     logger.debug( p.get_prompts() )
-
-    
     pass

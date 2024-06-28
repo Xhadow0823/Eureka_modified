@@ -496,7 +496,7 @@ class FrankaCubeStackRRR(VecTask):
         self._update_states()
 
     def compute_reward(self, actions):
-        self.rew_buf[:], self.reward_components = compute_reward(self.cubeA_pos, self.cubeA_to_cubeB_pos, self.eef_pos, self.FSM, self.a_gripper, self.cubeA_height, self.cubeA_pos_relative)
+        self.rew_buf[:], self.reward_components = compute_reward(self.cubeA_pos, self.cubeA_to_cubeB_pos, self.cubeA_height, self.eef_pos, self.cubeA_pos_relative, self.FSM, self.a_gripper, self.cubeA_size, self.cubeB_size)
 
         _, self.reset_buf[:], _ = compute_franka_reward(
             self.reset_buf, self.progress_buf, self.actions, self.states, self.reward_settings, self.max_episode_length
@@ -518,11 +518,12 @@ class FrankaCubeStackRRR(VecTask):
         self.cubeA_to_cubeB_pos = self.states["cubeA_to_cubeB_pos"]
         self.eef_pos = self.states["eef_pos"]
         self.FSM = self.states["FSM"]  # this is a Tensor (dtype=long) that every agent's current state
-        self.a_gripper = self.actions[:, -1]  # a_gripper <=0 means gripper close
+        self.a_gripper = self.actions[:, -1]  # The value of a_gripper range is from -1 to 1. When a_gripper is smaller, the gripper is more closed; when a_gripper is larger, the gripper is more open.
         self.cubeA_height = self.states["cubeA_height"]  # this is the height of cubeA from table surface
         self.cubeA_pos_relative = self.states["cubeA_pos_relative"]  # this is a tensor, equal to cubeA's pos - eef'pos
 
         return self.obs_buf
+        
     
     # def compute_observations(self):  # TODO: same obs space for experiment
     #     self._refresh()
@@ -789,62 +790,51 @@ class FrankaCubeStackRRR(VecTask):
 #####################################################################
 
 @torch.jit.script
-def compute_reward(cubeA_pos: torch.Tensor, 
-                   cubeA_to_cubeB_pos: torch.Tensor, 
-                   eef_pos: torch.Tensor, 
-                   FSM: torch.Tensor, 
-                   a_gripper: torch.Tensor, 
-                   cubeA_height: torch.Tensor, 
-                   cubeA_pos_relative: torch.Tensor) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
-    device = cubeA_pos.device
-    reward = torch.zeros(FSM.size(0), device=device)
+def compute_reward(cubeA_pos: torch.Tensor, cubeA_to_cubeB_pos: torch.Tensor, cubeA_height: torch.Tensor, 
+                   eef_pos: torch.Tensor, cubeA_pos_relative: torch.Tensor, FSM: torch.Tensor, 
+                   a_gripper: torch.Tensor, cubeA_size: float, cubeB_size: float) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
+
+    # initialize reward and reward components
+    reward = torch.zeros_like(FSM, dtype=torch.float32)
     reward_components = {}
 
-    # Define temperature parameters for tanh transformations
-    temp_state0 = torch.tensor(10.0).to(device)
-    temp_state1 = torch.tensor(10.0).to(device)
-    temp_state2 = torch.tensor(10.0).to(device)
-    temp_state3 = torch.tensor(10.0).to(device)
-    temp_state4 = torch.tensor(10.0).to(device)
-    temp_state5 = torch.tensor(10.0).to(device)
-    temp_state6 = torch.tensor(10.0).to(device)
-
-    # === State 0 reward: Encourage the end effector to reach the cubeA position ===
-    dist_to_cubeA = torch.norm(cubeA_pos_relative, dim=-1)
-    state0_reward = torch.where(FSM == 0, torch.tanh(temp_state0 * (1.0 / (0.1 + dist_to_cubeA))), torch.zeros_like(dist_to_cubeA))
-
-    # === State 1 reward: Encourage the end effector to close the gripper and hold the cubeA ===
-    gripper_closed = torch.clamp(1.0 - torch.abs(a_gripper), 0.0, 1.0)  # Values between 0 and 1 based on how closed the gripper is
-    state1_reward = torch.where(FSM == 1, torch.tanh(temp_state1 * gripper_closed), torch.zeros_like(gripper_closed))
-
-    # === State 2 reward: Encourage the end effector to lift the cubeA ===
-    lift_target_height = torch.tensor(0.05).to(device)  # Cube should be lifted by at least 0.05 units
-    lift_reward = torch.minimum(cubeA_height / lift_target_height, torch.tensor(1.0).to(device))
-    state2_reward = torch.where(FSM == 2, torch.tanh(temp_state2 * lift_reward), torch.zeros_like(lift_reward))
-
-    # === State 3 reward: Encourage the end effector to move cubeA to above cubeB ===
-    above_cubeB = torch.clamp(cubeA_to_cubeB_pos[:, 2] / lift_target_height, 0.0, 1.0)
-    state3_reward = torch.where(FSM == 3, torch.tanh(temp_state3 * above_cubeB), torch.zeros_like(above_cubeB))
-
-    # === State 4 reward: Encouraging precise positioning of cubeA above cubeB ===
-    close_to_cubeB = torch.norm(cubeA_to_cubeB_pos, dim=-1)
-    state4_reward = torch.where(FSM == 4, torch.tanh(temp_state4 * (1.0 / (0.1 + close_to_cubeB))), torch.zeros_like(close_to_cubeB))
-
-    # === State 5 reward: Encouraging the agent to open the gripper to release cubeA ===
-    gripper_opened = torch.clamp(a_gripper, 0.0, 1.0)  # Values between 0 and 1 based on how open the gripper is
-    state5_reward = torch.where(FSM == 5, torch.tanh(temp_state5 * gripper_opened), torch.zeros_like(gripper_opened))
-
-    # === State 6 reward: Reward for successful stack and moving end effector away ===
-    stack_success = torch.clamp((0.07 - torch.abs(cubeA_to_cubeB_pos[:, 2] - 0.07 / 2)) / 0.07, 0.0, 1.0)
-    eef_away = torch.minimum(torch.norm(eef_pos - cubeA_pos, dim=-1) / 0.1, torch.tensor(1.0).to(device))
-    state6_reward = torch.where(FSM == 6, torch.tanh(temp_state6 * (stack_success * eef_away)), torch.zeros_like(stack_success))
-
-    # === state-up reward (BSR) ===
-    BSR = FSM.to(torch.float)  # important: this BSR reward is needed for all tasks
-
-    # Sum up all state rewards into total reward
-    reward += (state0_reward + state1_reward + state2_reward + state3_reward + state4_reward + state5_reward + state6_reward + BSR)
-
+    # === state 0 reward: End effector approaching cube A ===
+    approach_reward = 1 - torch.tanh(torch.norm(cubeA_pos_relative, dim=-1))
+    state0_reward = torch.where(FSM == 0, approach_reward, torch.zeros_like(approach_reward))
+    
+    # === state 1 reward: Gripper closing ===
+    close_gripper_reward = 1 - torch.tanh((a_gripper + 1) / 2)
+    state1_reward = torch.where(FSM == 1, close_gripper_reward, torch.zeros_like(close_gripper_reward))
+    
+    # === state 2 reward: Cube A reaching high altitude ===
+    high_altitude_reward = torch.tanh(cubeA_height / 0.2)  # assume 0.2 is the max height achievable
+    state2_reward = torch.where(FSM == 2, high_altitude_reward, torch.zeros_like(high_altitude_reward))
+    
+    # === state 3 reward: Horizontal alignment of cube A and cube B ===
+    horiz_alignment_reward = 1 - torch.tanh(torch.norm(cubeA_to_cubeB_pos[:,:2], dim=-1))
+    state3_reward = torch.where(FSM == 3, horiz_alignment_reward, torch.zeros_like(horiz_alignment_reward))
+    
+    # === state 4 reward: Cube A placed directly above cube B ===
+    target_distance = (cubeA_size + cubeB_size) / 2.0
+    vertical_margin = 0.01  # introducing margin to avoid zero reward in state 4
+    distance_to_target = torch.abs(torch.norm(cubeA_to_cubeB_pos, dim=-1) - target_distance)
+    alignment_reward = 1 - torch.tanh(distance_to_target / (target_distance + vertical_margin))
+    state4_reward = torch.where(FSM == 4, alignment_reward, torch.zeros_like(alignment_reward))
+    
+    # === state 5 reward: Gripper opening ===
+    open_gripper_reward = torch.tanh((a_gripper + 1) / 2)
+    state5_reward = torch.where(FSM == 5, open_gripper_reward, torch.zeros_like(open_gripper_reward))
+    
+    # === state 6 reward: Final state where cube A is stacked on cube B ===
+    stacked_reward = torch.ones_like(FSM, dtype=torch.float32)
+    state6_reward = torch.where(FSM == 6, stacked_reward, torch.zeros_like(stacked_reward))
+    
+    # === BSR ===
+    BSR = FSM.to(torch.float32)
+    
+    # Sum up all state reward components and BSR into total reward
+    reward = state0_reward + state1_reward + state2_reward + state3_reward + state4_reward + state5_reward + state6_reward + BSR
+    
     # Store each state reward into the dict
     reward_components["r/state0"] = state0_reward.mean()
     reward_components["r/state1"] = state1_reward.mean()

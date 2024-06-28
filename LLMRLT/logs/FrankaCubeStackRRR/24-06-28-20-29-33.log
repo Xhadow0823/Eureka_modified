@@ -1,0 +1,513 @@
+INFO: TASK INFO: franka_cube_stack_rrr
+INFO: DEMO START
+INFO: SYSTEM PROMPT: You are a reward engineer trying to write reward functions to solve reinforcement learning tasks as effective as possible.
+Your goal is to write a reward function for the environment that will help the agent learn the task described in text. 
+Your reward function should use useful variables from the environment as inputs. As an example,
+the reward function signature can be: 
+@torch.jit.script
+def compute_reward(object_pos: torch.Tensor, goal_pos: torch.Tensor, ...) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
+    # initialize
+    reward = torch.zeros_like(...)
+    reward_components = {}
+
+    # this section compute the reward component for state 0
+    # === state 0 reward ===
+    approach_reward = ...   # this is a reward component for making agent approaching...
+    state0_reward = torch.where(FSM == 0, approach_reward, torch.zeros_like(...))
+
+    # this section compute the reward component for state 1
+    # === state 1 reward ===
+    close_gripper_reward = torch.tanh(temp_state_1 * -a_gripper)
+    state1_reward = torch.where(FSM == 1, close_gripper_reward, torch.zeros_like(...))
+    ...
+
+    # === BSR ===
+    BSR = FSM.to(torch.float)  # important: this BSR reward is needed for all task
+
+    # this section sum up all state reward components and BSR into total reward
+    reward = state0_reward + state1_reward + ... + BSR
+
+    # this section storage each state reward into the dict
+    reward_components["r/state0"] = state0_reward.mean()  # note that the state reward is tensor, we have to do .mean() to turn it into float for storage in dict
+    reward_components["r/state1"] = state1_reward.mean()
+    ...
+    reward_components["r/BSR"] = BSR.mean()  # save BSR into reward_components dict is important
+
+    return reward, reward_components
+
+Since the reward function will be decorated with @torch.jit.script,
+please make sure that the code is compatible with TorchScript (e.g., use torch tensor instead of numpy array). 
+Make sure any new tensor or variable you introduce is on the same device as the input tensors. The output of the reward function should consist of two items:
+    (1) the total reward,
+    (2) a dictionary of each individual reward component.
+The code output should be formatted as a python code string: "```python ... ```".
+
+Some helpful tips for writing the reward function code:
+    + The whole task will be decompose into several "sub-tasks", and the reward function will be decompose into several sub-reward functions called "sub-task reward components".
+    + Each sub-task reward component is continuous and smooth, DO NOT use binary conditions or specific thresholds.
+    + Each sub-task reward component must range 0~1.
+    + The final reward is the sum of all sub-task reward components plus the BSR(Base Sub-task Reward).
+    + For certain tasks, additional rewards may be given upon reaching the final sub-task. The decision to give additional rewards should be based on the task description.
+    + Make sure the type of each input variable is correctly specified; a float input variable should not be specified as torch.Tensor .
+    + Most importantly, the reward code's input variables must contain only attributes of the provided environment class definition (namely, variables that have prefix self.). Under no circumstance can you introduce new input variables.
+INFO: USER PROMPT: The Python environment is class FrankaCubeStackRRR(VecTask):    
+    def compute_observations(self):
+        self._refresh()
+        obs = ["cubeA_quat", "cubeA_pos", "cubeA_to_cubeB_pos", "eef_pos", "eef_quat"]
+        obs += ["q_gripper"]
+        obs += ["FSM_p"]
+        self.obs_buf = torch.cat([self.states[ob].view(self.num_envs, -1) for ob in obs], dim=-1)
+
+        # here are some important property that you may used to build the reward function
+        self.cubeA_size = 0.05
+        self.cubeB_size = 0.07
+        self.cubeA_pos = self.states["cubeA_pos"]
+        self.cubeA_to_cubeB_pos = self.states["cubeA_to_cubeB_pos"]
+        self.eef_pos = self.states["eef_pos"]
+        self.FSM = self.states["FSM"]  # this is a Tensor (dtype=long) that every agent's current state
+        self.a_gripper = self.actions[:, -1]  # The value of a_gripper range is from -1 to 1. When a_gripper is smaller, the gripper is more closed; when a_gripper is larger, the gripper is more open.
+        self.cubeA_height = self.states["cubeA_height"]  # this is the height of cubeA from table surface
+        self.cubeA_pos_relative = self.states["cubeA_pos_relative"]  # this is a tensor, equal to cubeA's pos - eef'pos
+
+        return self.obs_buf
+        . Write a reward function for the following task: This task is to make cube A stack on cube B using the end effector (gripper).
+The task is decomposed into 7 sub-tasks.
+The current sub-task index of each agent is stored in the variable "FSM" as a torch.Tensor.
+The sub-task 0 (state0) requires the end effector to approach cube A.
+The sub-task 1 (state1) requires the gripper to close as much as possible.
+The sub-task 2 (state2) requires cube A to reach as high an altitude as possible.
+The sub-task 3 (state3) requires the horizontal coordinates between cube A and cube B to be as close as possible.
+The sub-task 4 (state4) requires cube A to be positioned directly above cube B at a distance of (cubeA_size + cubeB_size)/2. The closer, the better.
+The sub-task 5 (state5) requires the end effector to open as much as possible.
+The sub-task 6 (state6) represents the state where cube A is stacked on cube B, with a reward always equal to 1..
+INFO: LLM RESPONSE: ```python
+import torch
+import torch.nn.functional as F
+
+@torch.jit.script
+def compute_reward(cubeA_pos: torch.Tensor, cubeA_to_cubeB_pos: torch.Tensor, cubeA_height: torch.Tensor, 
+                   eef_pos: torch.Tensor, cubeA_pos_relative: torch.Tensor, FSM: torch.Tensor, 
+                   a_gripper: torch.Tensor, cubeA_size: float, cubeB_size: float) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
+    
+    # initialize reward and reward components
+    reward = torch.zeros_like(FSM, dtype=torch.float32)
+    reward_components = {}
+
+    # === state 0 reward: End effector approaching cube A ===
+    approach_reward = 1 - torch.tanh(torch.norm(cubeA_pos_relative, dim=-1))
+    state0_reward = torch.where(FSM == 0, approach_reward, torch.zeros_like(approach_reward))
+    
+    # === state 1 reward: Gripper closing ===
+    close_gripper_reward = 1 - torch.tanh(-a_gripper)
+    state1_reward = torch.where(FSM == 1, close_gripper_reward, torch.zeros_like(close_gripper_reward))
+    
+    # === state 2 reward: Cube A reaching high altitude ===
+    high_altitude_reward = torch.tanh(cubeA_height)
+    state2_reward = torch.where(FSM == 2, high_altitude_reward, torch.zeros_like(high_altitude_reward))
+    
+    # === state 3 reward: Horizontal alignment of cube A and cube B ===
+    horiz_alignment_reward = 1 - torch.tanh(torch.norm(cubeA_to_cubeB_pos[:,:2], dim=-1))
+    state3_reward = torch.where(FSM == 3, horiz_alignment_reward, torch.zeros_like(horiz_alignment_reward))
+    
+    # === state 4 reward: Cube A placed directly above cube B ===
+    target_distance = (cubeA_size + cubeB_size) / 2.0
+    alignment_reward = 1 - torch.tanh(torch.abs(torch.norm(cubeA_to_cubeB_pos, dim=-1) - target_distance))
+    state4_reward = torch.where(FSM == 4, alignment_reward, torch.zeros_like(alignment_reward))
+    
+    # === state 5 reward: Gripper opening ===
+    open_gripper_reward = torch.tanh(a_gripper)
+    state5_reward = torch.where(FSM == 5, open_gripper_reward, torch.zeros_like(open_gripper_reward))
+    
+    # === state 6 reward: Final state where cube A is stacked on cube B ===
+    final_state_reward = torch.tanh(torch.ones_like(FSM, dtype=torch.float32))
+    state6_reward = torch.where(FSM == 6, final_state_reward, torch.zeros_like(final_state_reward))
+    
+    # === BSR ===
+    BSR = FSM.to(torch.float32)
+    
+    # Sum up all state reward components and BSR into total reward
+    reward = state0_reward + state1_reward + state2_reward + state3_reward + state4_reward + state5_reward + state6_reward + BSR
+    
+    # Store each state reward into the dict
+    reward_components["r/state0"] = state0_reward.mean()
+    reward_components["r/state1"] = state1_reward.mean()
+    reward_components["r/state2"] = state2_reward.mean()
+    reward_components["r/state3"] = state3_reward.mean()
+    reward_components["r/state4"] = state4_reward.mean()
+    reward_components["r/state5"] = state5_reward.mean()
+    reward_components["r/state6"] = state6_reward.mean()
+    reward_components["r/BSR"] = BSR.mean()
+
+    return reward, reward_components
+```
+INFO: TOTAL TOKEN: 2100
+INFO: EVALUATION START
+INFO: EVALUATION INFO: max_epochs=300
+INFO: TENSORBOARD LOG DIR: /home/miat/Eureka_modified/policy-2024-06-28_20-30-12/runs/FrankaCubeStackRRR-2024-06-28_20-30-13/summaries
+INFO: EVALUATION SUMMARY: 
+rewards/iter: [213.11387634277344, 454.43505859375, 733.1055297851562, 758.0866088867188, 760.2007446289062, 768.4486694335938, 767.3323974609375, 771.0003662109375, 772.7679443359375, 772.2064819335938], min: 213.11387634277344, max: 772.7679443359375
+r/state0: [0.7075183391571045, 0.6411383152008057, 0.016448892652988434, 0.007304542697966099, 0.019343074411153793, 0.35567736625671387, 0.004727142862975597, 0.00529285054653883, 0.003680012421682477, 0.0040996260941028595], min: 0.003680012421682477, max: 0.7075183391571045
+r/state1: [0.0, 0.2550065517425537, 1.6638667583465576, 1.7436094284057617, 1.715349793434143, 1.0695550441741943, 1.7521696090698242, 1.750483751296997, 1.7540987730026245, 1.752351999282837], min: 0.0, max: 1.7540987730026245
+r/state2: [0.0, 0.0034224900882691145, 0.00025027693482115865, 6.471914730354911e-06, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], min: 0.0, max: 0.0034224900882691145
+r/state3: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], min: 0.0, max: 0.0
+r/state4: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], min: 0.0, max: 0.0
+r/state5: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], min: 0.0, max: 0.0
+r/state6: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], min: 0.0, max: 0.0
+r/BSR: [0.0, 0.4215087890625, 0.9918212890625, 0.9923095703125, 0.975341796875, 0.6077880859375, 0.9949951171875, 0.994140625, 0.99609375, 0.9949951171875], min: 0.0, max: 0.99609375
+r/SR: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], min: 0.0, max: 0.0
+
+INFO: EVALUATION FINISH
+INFO: USER PROMPT: We trained a RL policy using the provided reward function code and tracked the values of each sub-task reward components, BSR(Base Sub-task Reward) and SR(Success Rate) in the reward function, the maximum, mean, minimum values encountered:
+rewards/iter: [213.11387634277344, 454.43505859375, 733.1055297851562, 758.0866088867188, 760.2007446289062, 768.4486694335938, 767.3323974609375, 771.0003662109375, 772.7679443359375, 772.2064819335938], min: 213.11387634277344, max: 772.7679443359375
+r/state0: [0.7075183391571045, 0.6411383152008057, 0.016448892652988434, 0.007304542697966099, 0.019343074411153793, 0.35567736625671387, 0.004727142862975597, 0.00529285054653883, 0.003680012421682477, 0.0040996260941028595], min: 0.003680012421682477, max: 0.7075183391571045
+r/state1: [0.0, 0.2550065517425537, 1.6638667583465576, 1.7436094284057617, 1.715349793434143, 1.0695550441741943, 1.7521696090698242, 1.750483751296997, 1.7540987730026245, 1.752351999282837], min: 0.0, max: 1.7540987730026245
+r/state2: [0.0, 0.0034224900882691145, 0.00025027693482115865, 6.471914730354911e-06, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], min: 0.0, max: 0.0034224900882691145
+r/state3: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], min: 0.0, max: 0.0
+r/state4: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], min: 0.0, max: 0.0
+r/state5: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], min: 0.0, max: 0.0
+r/state6: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], min: 0.0, max: 0.0
+r/BSR: [0.0, 0.4215087890625, 0.9918212890625, 0.9923095703125, 0.975341796875, 0.6077880859375, 0.9949951171875, 0.994140625, 0.99609375, 0.9949951171875], min: 0.0, max: 0.99609375
+r/SR: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], min: 0.0, max: 0.0
+
+Please carefully analyze the evaluation result and provide a new, improved reward function that can better solve the task. Some helpful tips for analyzing the policy feedback:
++ For the SR (Success Rate): 
+	+ If the success rate (SR) is always near zero, rewrite the entire reward function.
+	+ If the success rate (SR) cannot reach 0.4, the user must increase the task's max-epochs for evaluation.
++ For the BSR (Base Sub-task Reward): 
+	+ If the BSR is always near zero, rewrite the entire reward function.
+    + In the evaluation, the highest achievable sub-task index is sub-task 1, while the last sub-task in the entire task is sub-task 6. Please consider redesigning the reward functions for sub-tasks 1 through 6.
+    + Do not modify the BSR component.
++ For the modifications of sub-tasks 1 through 6, here are some guidelines:
+    + If the minimum value of any sub-task reward is less than 0, the sub-task reward range is illegal. Modify the sub-task reward to range from 0 to 1.
+    + If the maximum value of any sub-task reward is more than 1 and the sub-task is not the latest sub-task, the sub-task reward range is illegal. Modify the sub-task reward to range from 0 to 1.
+    + If the sub-task reward of state n is always near zero, re-design the sub-task reward.
++ For sub-tasks 0 through 0, please check for the following issues. If none of these issues are present, retain their design:
+    + If the minimum value of any sub-task reward is less than 0, the sub-task reward range is illegal. Modify the sub-task reward to range from 0 to 1.
+    + If the maximum value of any sub-task reward is more than 1 and the sub-task is not the latest sub-task, the sub-task reward range is illegal. Modify the sub-task reward to range from 0 to 1.
++ Please infer the domain of the observations required to calculate the sub-task rewards based on the range of sub-task reward results in the evaluation result, and redesign the functions according to that domain to ensure the sub-task reward range is valid.
++ Please redesign the sub-task reward according to the sub-task reward domain to ensure the reward range is valid, without using functions like clamp.
++ Please analyze each existing reward component in the suggested manner above first, and then write the reward!
+The output of the reward function should consist of two items:
+    (1) the total reward,
+    (2) a dictionary of each individual reward component.
+The code output should be formatted as a python code string: "```python ... ```".
+
+Some helpful tips for writing the reward function code:
+    + The whole task will be decompose into several "sub-tasks", and the reward function will be decompose into several sub-reward functions called "sub-task reward components".
+    + Each sub-task reward component is continuous and smooth, DO NOT use binary conditions or specific thresholds.
+    + Each sub-task reward component must range 0~1.
+    + The final reward is the sum of all sub-task reward components plus the BSR(Base Sub-task Reward).
+    + For certain tasks, additional rewards may be given upon reaching the final sub-task. The decision to give additional rewards should be based on the task description.
+    + Make sure the type of each input variable is correctly specified; a float input variable should not be specified as torch.Tensor .
+    + Most importantly, the reward code's input variables must contain only attributes of the provided environment class definition (namely, variables that have prefix self.). Under no circumstance can you introduce new input variables.
+INFO: LLM RESPONSE: ```python
+import torch
+import torch.nn.functional as F
+
+@torch.jit.script
+def compute_reward(cubeA_pos: torch.Tensor, cubeA_to_cubeB_pos: torch.Tensor, cubeA_height: torch.Tensor, 
+                   eef_pos: torch.Tensor, cubeA_pos_relative: torch.Tensor, FSM: torch.Tensor, 
+                   a_gripper: torch.Tensor, cubeA_size: float, cubeB_size: float) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
+    
+    # initialize reward and reward components
+    reward = torch.zeros_like(FSM, dtype=torch.float32)
+    reward_components = {}
+
+    # === state 0 reward: End effector approaching cube A ===
+    approach_reward = 1 - torch.tanh(torch.norm(cubeA_pos_relative, dim=-1))
+    state0_reward = torch.where(FSM == 0, approach_reward, torch.zeros_like(approach_reward))
+    
+    # === state 1 reward: Gripper closing ===
+    close_gripper_reward = torch.tanh((1 - a_gripper) / 2)
+    state1_reward = torch.where(FSM == 1, close_gripper_reward, torch.zeros_like(close_gripper_reward))
+    
+    # === state 2 reward: Cube A reaching high altitude ===
+    high_altitude_reward = torch.tanh(cubeA_height / 0.2)  # assume 0.2 is the max height achievable
+    state2_reward = torch.where(FSM == 2, high_altitude_reward, torch.zeros_like(high_altitude_reward))
+    
+    # === state 3 reward: Horizontal alignment of cube A and cube B ===
+    horiz_alignment_reward = 1 - torch.tanh(torch.norm(cubeA_to_cubeB_pos[:,:2], dim=-1))
+    state3_reward = torch.where(FSM == 3, horiz_alignment_reward, torch.zeros_like(horiz_alignment_reward))
+    
+    # === state 4 reward: Cube A placed directly above cube B ===
+    target_distance = (cubeA_size + cubeB_size) / 2.0
+    alignment_reward = 1 - torch.tanh(torch.norm(torch.norm(cubeA_to_cubeB_pos, dim=-1) - target_distance))
+    state4_reward = torch.where(FSM == 4, alignment_reward, torch.zeros_like(alignment_reward))
+    
+    # === state 5 reward: Gripper opening ===
+    open_gripper_reward = torch.tanh((a_gripper + 1) / 2)
+    state5_reward = torch.where(FSM == 5, open_gripper_reward, torch.zeros_like(open_gripper_reward))
+    
+    # === state 6 reward: Final state where cube A is stacked on cube B ===
+    final_state_reward = torch.ones_like(FSM, dtype=torch.float32)
+    state6_reward = torch.where(FSM == 6, final_state_reward, torch.zeros_like(final_state_reward))
+    
+    # === BSR ===
+    BSR = FSM.to(torch.float32)
+    
+    # Sum up all state reward components and BSR into total reward
+    reward = state0_reward + state1_reward + state2_reward + state3_reward + state4_reward + state5_reward + state6_reward + BSR
+    
+    # Store each state reward into the dict
+    reward_components["r/state0"] = state0_reward.mean()
+    reward_components["r/state1"] = state1_reward.mean()
+    reward_components["r/state2"] = state2_reward.mean()
+    reward_components["r/state3"] = state3_reward.mean()
+    reward_components["r/state4"] = state4_reward.mean()
+    reward_components["r/state5"] = state5_reward.mean()
+    reward_components["r/state6"] = state6_reward.mean()
+    reward_components["r/BSR"] = BSR.mean()
+
+    return reward, reward_components
+```
+INFO: TOTAL TOKEN: 6733
+INFO: EVALUATION START
+INFO: EVALUATION INFO: max_epochs=300
+INFO: TENSORBOARD LOG DIR: /home/miat/Eureka_modified/policy-2024-06-28_20-40-04/runs/FrankaCubeStackRRR-2024-06-28_20-40-05/summaries
+INFO: EVALUATION SUMMARY: 
+rewards/iter: [213.12384033203125, 373.208984375, 841.656494140625, 918.8530883789062, 949.0166015625, 985.564453125, 1002.323486328125, 977.8397216796875, 975.0093383789062, 988.53515625], min: 213.12384033203125, max: 1002.323486328125
+r/state0: [0.7075183391571045, 0.7305424213409424, 0.05245796591043472, 0.028221383690834045, 0.017575502395629883, 0.5522130727767944, 0.017999550327658653, 0.031200047582387924, 0.02329273335635662, 0.01115221157670021], min: 0.01115221157670021, max: 0.7305424213409424
+r/state1: [0.0, 0.019347667694091797, 0.011533884331583977, 0.002668602392077446, 0.0007368320366367698, 0.02730892226099968, 0.0006554033025167882, 0.000664637191221118, 0.0003798053949140012, 0.0001630620681680739], min: 0.0, max: 0.02730892226099968
+r/state2: [0.0, 0.01817440614104271, 0.03496819734573364, 0.006695128045976162, 0.0020054825581610203, 0.06086711585521698, 0.014626307412981987, 0.004328541923314333, 0.0016097328625619411, 0.0005248469533398747], min: 0.0, max: 0.06086711585521698
+r/state3: [0.0, 0.0, 0.5507009029388428, 0.7105333805084229, 0.8084064722061157, 7.023826765362173e-05, 0.7445498704910278, 0.8032330274581909, 0.8116459846496582, 0.8132807016372681], min: 0.0, max: 0.8132807016372681
+r/state4: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], min: 0.0, max: 0.0
+r/state5: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 2.011433753068559e-05, 0.00023059549857862294, 0.0016698520630598068, 0.0027471003122627735], min: 0.0, max: 0.0027471003122627735
+r/state6: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], min: 0.0, max: 0.0
+r/BSR: [0.0, 0.351806640625, 2.6378173828125, 2.8734130859375, 2.947509765625, 0.726318359375, 2.8946533203125, 2.9053955078125, 2.985107421875, 3.065673828125], min: 0.0, max: 3.065673828125
+r/SR: [0.0, 0.0, 0.0001220703125, 0.0013427734375, 0.0008544921875, 0.0, 0.000244140625, 0.0006103515625, 0.0008544921875, 0.0010986328125], min: 0.0, max: 0.0013427734375
+
+INFO: EVALUATION FINISH
+INFO: USER PROMPT: We trained a RL policy using the provided reward function code and tracked the values of each sub-task reward components, BSR(Base Sub-task Reward) and SR(Success Rate) in the reward function, the maximum, mean, minimum values encountered:
+rewards/iter: [213.12384033203125, 373.208984375, 841.656494140625, 918.8530883789062, 949.0166015625, 985.564453125, 1002.323486328125, 977.8397216796875, 975.0093383789062, 988.53515625], min: 213.12384033203125, max: 1002.323486328125
+r/state0: [0.7075183391571045, 0.7305424213409424, 0.05245796591043472, 0.028221383690834045, 0.017575502395629883, 0.5522130727767944, 0.017999550327658653, 0.031200047582387924, 0.02329273335635662, 0.01115221157670021], min: 0.01115221157670021, max: 0.7305424213409424
+r/state1: [0.0, 0.019347667694091797, 0.011533884331583977, 0.002668602392077446, 0.0007368320366367698, 0.02730892226099968, 0.0006554033025167882, 0.000664637191221118, 0.0003798053949140012, 0.0001630620681680739], min: 0.0, max: 0.02730892226099968
+r/state2: [0.0, 0.01817440614104271, 0.03496819734573364, 0.006695128045976162, 0.0020054825581610203, 0.06086711585521698, 0.014626307412981987, 0.004328541923314333, 0.0016097328625619411, 0.0005248469533398747], min: 0.0, max: 0.06086711585521698
+r/state3: [0.0, 0.0, 0.5507009029388428, 0.7105333805084229, 0.8084064722061157, 7.023826765362173e-05, 0.7445498704910278, 0.8032330274581909, 0.8116459846496582, 0.8132807016372681], min: 0.0, max: 0.8132807016372681
+r/state4: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], min: 0.0, max: 0.0
+r/state5: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 2.011433753068559e-05, 0.00023059549857862294, 0.0016698520630598068, 0.0027471003122627735], min: 0.0, max: 0.0027471003122627735
+r/state6: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], min: 0.0, max: 0.0
+r/BSR: [0.0, 0.351806640625, 2.6378173828125, 2.8734130859375, 2.947509765625, 0.726318359375, 2.8946533203125, 2.9053955078125, 2.985107421875, 3.065673828125], min: 0.0, max: 3.065673828125
+r/SR: [0.0, 0.0, 0.0001220703125, 0.0013427734375, 0.0008544921875, 0.0, 0.000244140625, 0.0006103515625, 0.0008544921875, 0.0010986328125], min: 0.0, max: 0.0013427734375
+
+Please carefully analyze the evaluation result and provide a new, improved reward function that can better solve the task. Some helpful tips for analyzing the policy feedback:
++ For the SR (Success Rate): 
+	+ If the success rate (SR) is always near zero, rewrite the entire reward function.
+	+ If the success rate (SR) cannot reach 0.4, the user must increase the task's max-epochs for evaluation.
++ For the BSR (Base Sub-task Reward): 
+	+ If the BSR is always near zero, rewrite the entire reward function.
+    + In the evaluation, the highest achievable sub-task index is sub-task 4, while the last sub-task in the entire task is sub-task 6. Please consider redesigning the reward functions for sub-tasks 4 through 6.
+    + Do not modify the BSR component.
++ For the modifications of sub-tasks 4 through 6, here are some guidelines:
+    + If the minimum value of any sub-task reward is less than 0, the sub-task reward range is illegal. Modify the sub-task reward to range from 0 to 1.
+    + If the maximum value of any sub-task reward is more than 1 and the sub-task is not the latest sub-task, the sub-task reward range is illegal. Modify the sub-task reward to range from 0 to 1.
+    + If the sub-task reward of state n is always near zero, re-design the sub-task reward.
++ For sub-tasks 0 through 3, please check for the following issues. If none of these issues are present, retain their design:
+    + If the minimum value of any sub-task reward is less than 0, the sub-task reward range is illegal. Modify the sub-task reward to range from 0 to 1.
+    + If the maximum value of any sub-task reward is more than 1 and the sub-task is not the latest sub-task, the sub-task reward range is illegal. Modify the sub-task reward to range from 0 to 1.
++ Please infer the domain of the observations required to calculate the sub-task rewards based on the range of sub-task reward results in the evaluation result, and redesign the functions according to that domain to ensure the sub-task reward range is valid.
++ Please redesign the sub-task reward according to the sub-task reward domain to ensure the reward range is valid, without using functions like clamp.
++ Please analyze each existing reward component in the suggested manner above first, and then write the reward!
+The output of the reward function should consist of two items:
+    (1) the total reward,
+    (2) a dictionary of each individual reward component.
+The code output should be formatted as a python code string: "```python ... ```".
+
+Some helpful tips for writing the reward function code:
+    + The whole task will be decompose into several "sub-tasks", and the reward function will be decompose into several sub-reward functions called "sub-task reward components".
+    + Each sub-task reward component is continuous and smooth, DO NOT use binary conditions or specific thresholds.
+    + Each sub-task reward component must range 0~1.
+    + The final reward is the sum of all sub-task reward components plus the BSR(Base Sub-task Reward).
+    + For certain tasks, additional rewards may be given upon reaching the final sub-task. The decision to give additional rewards should be based on the task description.
+    + Make sure the type of each input variable is correctly specified; a float input variable should not be specified as torch.Tensor .
+    + Most importantly, the reward code's input variables must contain only attributes of the provided environment class definition (namely, variables that have prefix self.). Under no circumstance can you introduce new input variables.
+INFO: LLM RESPONSE: ```python
+import torch
+import torch.nn.functional as F
+
+@torch.jit.script
+def compute_reward(cubeA_pos: torch.Tensor, cubeA_to_cubeB_pos: torch.Tensor, cubeA_height: torch.Tensor, 
+                   eef_pos: torch.Tensor, cubeA_pos_relative: torch.Tensor, FSM: torch.Tensor, 
+                   a_gripper: torch.Tensor, cubeA_size: float, cubeB_size: float) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
+
+    # initialize reward and reward components
+    reward = torch.zeros_like(FSM, dtype=torch.float32)
+    reward_components = {}
+
+    # === state 0 reward: End effector approaching cube A ===
+    approach_reward = 1 - torch.tanh(torch.norm(cubeA_pos_relative, dim=-1))
+    state0_reward = torch.where(FSM == 0, approach_reward, torch.zeros_like(approach_reward))
+    
+    # === state 1 reward: Gripper closing ===
+    close_gripper_reward = 1 - torch.tanh((a_gripper + 1) / 2)
+    state1_reward = torch.where(FSM == 1, close_gripper_reward, torch.zeros_like(close_gripper_reward))
+    
+    # === state 2 reward: Cube A reaching high altitude ===
+    high_altitude_reward = torch.tanh(cubeA_height / 0.2)  # assume 0.2 is the max height achievable
+    state2_reward = torch.where(FSM == 2, high_altitude_reward, torch.zeros_like(high_altitude_reward))
+    
+    # === state 3 reward: Horizontal alignment of cube A and cube B ===
+    horiz_alignment_reward = 1 - torch.tanh(torch.norm(cubeA_to_cubeB_pos[:,:2], dim=-1))
+    state3_reward = torch.where(FSM == 3, horiz_alignment_reward, torch.zeros_like(horiz_alignment_reward))
+    
+    # === state 4 reward: Cube A placed directly above cube B ===
+    target_distance = (cubeA_size + cubeB_size) / 2.0
+    vertical_margin = 0.01  # introducing margin to avoid zero reward in state 4
+    distance_to_target = torch.abs(torch.norm(cubeA_to_cubeB_pos, dim=-1) - target_distance)
+    alignment_reward = 1 - torch.tanh(distance_to_target / (target_distance + vertical_margin))
+    state4_reward = torch.where(FSM == 4, alignment_reward, torch.zeros_like(alignment_reward))
+    
+    # === state 5 reward: Gripper opening ===
+    open_gripper_reward = torch.tanh((a_gripper + 1) / 2)
+    state5_reward = torch.where(FSM == 5, open_gripper_reward, torch.zeros_like(open_gripper_reward))
+    
+    # === state 6 reward: Final state where cube A is stacked on cube B ===
+    stacked_reward = torch.ones_like(FSM, dtype=torch.float32)
+    state6_reward = torch.where(FSM == 6, stacked_reward, torch.zeros_like(stacked_reward))
+    
+    # === BSR ===
+    BSR = FSM.to(torch.float32)
+    
+    # Sum up all state reward components and BSR into total reward
+    reward = state0_reward + state1_reward + state2_reward + state3_reward + state4_reward + state5_reward + state6_reward + BSR
+    
+    # Store each state reward into the dict
+    reward_components["r/state0"] = state0_reward.mean()
+    reward_components["r/state1"] = state1_reward.mean()
+    reward_components["r/state2"] = state2_reward.mean()
+    reward_components["r/state3"] = state3_reward.mean()
+    reward_components["r/state4"] = state4_reward.mean()
+    reward_components["r/state5"] = state5_reward.mean()
+    reward_components["r/state6"] = state6_reward.mean()
+    reward_components["r/BSR"] = BSR.mean()
+
+    return reward, reward_components
+```
+INFO: TOTAL TOKEN: 14075
+INFO: USER SELECT: SET max_epochs=1000
+INFO: EVALUATION START
+INFO: EVALUATION INFO: max_epochs=1000
+INFO: TENSORBOARD LOG DIR: /home/miat/Eureka_modified/policy-2024-06-28_20-49-23/runs/FrankaCubeStackRRR-2024-06-28_20-49-24/summaries
+INFO: EVALUATION SUMMARY: 
+rewards/iter: [213.3820037841797, 839.3327026367188, 1015.962158203125, 1145.648193359375, 1220.436767578125, 1284.763427734375, 1327.325927734375, 1326.9281005859375, 1334.4036865234375, 1341.9080810546875], min: 213.3820037841797, max: 1341.9080810546875
+r/state0: [0.7075183391571045, 0.005897220689803362, 0.033117979764938354, 0.49068015813827515, 0.006150847300887108, 0.01251268945634365, 0.3538430631160736, 0.011328677646815777, 0.012846763245761395, 0.36746859550476074], min: 0.005897220689803362, max: 0.7075183391571045
+r/state1: [0.0, 0.0018784287385642529, 0.0016247965395450592, 0.027541633695364, 0.0004363954649306834, 0.0050546834245324135, 0.029996635392308235, 0.0012619963381439447, 0.001464266562834382, 0.03134690970182419], min: 0.0, max: 0.03134690970182419
+r/state2: [0.0, 0.05043507367372513, 0.006926257163286209, 0.07800142467021942, 0.000875704106874764, 0.0024042529985308647, 0.11162573099136353, 0.001145681831985712, 0.0018554271664470434, 0.11093851178884506], min: 0.0, max: 0.11162573099136353
+r/state3: [0.0, 0.5577576160430908, 0.7373137474060059, 0.00010344674956286326, 0.042648255825042725, 0.3769327402114868, 0.0004501186776906252, 0.040061257779598236, 0.36360812187194824, 0.0005411892780102789], min: 0.0, max: 0.7373137474060059
+r/state4: [0.0, 0.0022229687310755253, 0.06066102534532547, 0.0, 0.06850569695234299, 0.02776861935853958, 0.0, 0.03793848305940628, 0.025178875774145126, 0.0], min: 0.0, max: 0.06850569695234299
+r/state5: [0.0, 0.0, 0.0002003590780077502, 0.0, 0.17200008034706116, 0.1121574342250824, 0.0, 0.15963344275951385, 0.09905865788459778, 0.0], min: 0.0, max: 0.17200008034706116
+r/state6: [0.0, 0.0, 0.0, 0.0, 0.0081787109375, 0.1224365234375, 0.0, 0.3134765625, 0.197509765625, 0.0], min: 0.0, max: 0.3134765625
+r/BSR: [0.0, 2.791748046875, 2.9566650390625, 0.858154296875, 4.7794189453125, 4.1009521484375, 1.156005859375, 5.088134765625, 4.237548828125, 1.123046875], min: 0.0, max: 5.088134765625
+r/SR: [0.0, 0.0003662109375, 0.0, 0.0008544921875, 0.2696533203125, 0.4747314453125, 0.2645263671875, 0.8626708984375, 0.654052734375, 0.362060546875], min: 0.0, max: 0.8626708984375
+
+INFO: EVALUATION FINISH
+INFO: USER PROMPT: We trained a RL policy using the provided reward function code and tracked the values of each sub-task reward components, BSR(Base Sub-task Reward) and SR(Success Rate) in the reward function, the maximum, mean, minimum values encountered:
+rewards/iter: [213.3820037841797, 839.3327026367188, 1015.962158203125, 1145.648193359375, 1220.436767578125, 1284.763427734375, 1327.325927734375, 1326.9281005859375, 1334.4036865234375, 1341.9080810546875], min: 213.3820037841797, max: 1341.9080810546875
+r/state0: [0.7075183391571045, 0.005897220689803362, 0.033117979764938354, 0.49068015813827515, 0.006150847300887108, 0.01251268945634365, 0.3538430631160736, 0.011328677646815777, 0.012846763245761395, 0.36746859550476074], min: 0.005897220689803362, max: 0.7075183391571045
+r/state1: [0.0, 0.0018784287385642529, 0.0016247965395450592, 0.027541633695364, 0.0004363954649306834, 0.0050546834245324135, 0.029996635392308235, 0.0012619963381439447, 0.001464266562834382, 0.03134690970182419], min: 0.0, max: 0.03134690970182419
+r/state2: [0.0, 0.05043507367372513, 0.006926257163286209, 0.07800142467021942, 0.000875704106874764, 0.0024042529985308647, 0.11162573099136353, 0.001145681831985712, 0.0018554271664470434, 0.11093851178884506], min: 0.0, max: 0.11162573099136353
+r/state3: [0.0, 0.5577576160430908, 0.7373137474060059, 0.00010344674956286326, 0.042648255825042725, 0.3769327402114868, 0.0004501186776906252, 0.040061257779598236, 0.36360812187194824, 0.0005411892780102789], min: 0.0, max: 0.7373137474060059
+r/state4: [0.0, 0.0022229687310755253, 0.06066102534532547, 0.0, 0.06850569695234299, 0.02776861935853958, 0.0, 0.03793848305940628, 0.025178875774145126, 0.0], min: 0.0, max: 0.06850569695234299
+r/state5: [0.0, 0.0, 0.0002003590780077502, 0.0, 0.17200008034706116, 0.1121574342250824, 0.0, 0.15963344275951385, 0.09905865788459778, 0.0], min: 0.0, max: 0.17200008034706116
+r/state6: [0.0, 0.0, 0.0, 0.0, 0.0081787109375, 0.1224365234375, 0.0, 0.3134765625, 0.197509765625, 0.0], min: 0.0, max: 0.3134765625
+r/BSR: [0.0, 2.791748046875, 2.9566650390625, 0.858154296875, 4.7794189453125, 4.1009521484375, 1.156005859375, 5.088134765625, 4.237548828125, 1.123046875], min: 0.0, max: 5.088134765625
+r/SR: [0.0, 0.0003662109375, 0.0, 0.0008544921875, 0.2696533203125, 0.4747314453125, 0.2645263671875, 0.8626708984375, 0.654052734375, 0.362060546875], min: 0.0, max: 0.8626708984375
+
+Please carefully analyze the evaluation result and provide a new, improved reward function that can better solve the task. Some helpful tips for analyzing the policy feedback:
++ For the SR (Success Rate): 
+	+ If the success rate (SR) is always near zero, rewrite the entire reward function.
+	+ If the success rate (SR) cannot reach 0.4, the user must increase the task's max-epochs for evaluation.
++ For the BSR (Base Sub-task Reward): 
+	+ If the BSR is always near zero, rewrite the entire reward function.
+    + In the evaluation, the highest achievable sub-task index is sub-task 6, while the last sub-task in the entire task is sub-task 6. Please consider redesigning the reward functions for sub-tasks 6 through 6.
+    + Do not modify the BSR component.
++ For the modifications of sub-tasks 6 through 6, here are some guidelines:
+    + If the minimum value of any sub-task reward is less than 0, the sub-task reward range is illegal. Modify the sub-task reward to range from 0 to 1.
+    + If the maximum value of any sub-task reward is more than 1 and the sub-task is not the latest sub-task, the sub-task reward range is illegal. Modify the sub-task reward to range from 0 to 1.
+    + If the sub-task reward of state n is always near zero, re-design the sub-task reward.
++ For sub-tasks 0 through 5, please check for the following issues. If none of these issues are present, retain their design:
+    + If the minimum value of any sub-task reward is less than 0, the sub-task reward range is illegal. Modify the sub-task reward to range from 0 to 1.
+    + If the maximum value of any sub-task reward is more than 1 and the sub-task is not the latest sub-task, the sub-task reward range is illegal. Modify the sub-task reward to range from 0 to 1.
++ Please infer the domain of the observations required to calculate the sub-task rewards based on the range of sub-task reward results in the evaluation result, and redesign the functions according to that domain to ensure the sub-task reward range is valid.
++ Please redesign the sub-task reward according to the sub-task reward domain to ensure the reward range is valid, without using functions like clamp.
++ Please analyze each existing reward component in the suggested manner above first, and then write the reward!
+The output of the reward function should consist of two items:
+    (1) the total reward,
+    (2) a dictionary of each individual reward component.
+The code output should be formatted as a python code string: "```python ... ```".
+
+Some helpful tips for writing the reward function code:
+    + The whole task will be decompose into several "sub-tasks", and the reward function will be decompose into several sub-reward functions called "sub-task reward components".
+    + Each sub-task reward component is continuous and smooth, DO NOT use binary conditions or specific thresholds.
+    + Each sub-task reward component must range 0~1.
+    + The final reward is the sum of all sub-task reward components plus the BSR(Base Sub-task Reward).
+    + For certain tasks, additional rewards may be given upon reaching the final sub-task. The decision to give additional rewards should be based on the task description.
+    + Make sure the type of each input variable is correctly specified; a float input variable should not be specified as torch.Tensor .
+    + Most importantly, the reward code's input variables must contain only attributes of the provided environment class definition (namely, variables that have prefix self.). Under no circumstance can you introduce new input variables.
+INFO: LLM RESPONSE: ```python
+import torch
+import torch.nn.functional as F
+
+@torch.jit.script
+def compute_reward(cubeA_pos: torch.Tensor, cubeA_to_cubeB_pos: torch.Tensor, cubeA_height: torch.Tensor, 
+                   eef_pos: torch.Tensor, cubeA_pos_relative: torch.Tensor, FSM: torch.Tensor, 
+                   a_gripper: torch.Tensor, cubeA_size: float, cubeB_size: float) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
+
+    # initialize reward and reward components
+    reward = torch.zeros_like(FSM, dtype=torch.float32)
+    reward_components = {}
+
+    # === state 0 reward: End effector approaching cube A ===
+    approach_reward = 1 - torch.tanh(torch.norm(cubeA_pos_relative, dim=-1))
+    state0_reward = torch.where(FSM == 0, approach_reward, torch.zeros_like(approach_reward))
+    
+    # === state 1 reward: Gripper closing ===
+    close_gripper_reward = torch.tanh((1 - a_gripper) / 2)  # More sensitive to encourage gripper closing
+    state1_reward = torch.where(FSM == 1, close_gripper_reward, torch.zeros_like(close_gripper_reward))
+    
+    # === state 2 reward: Cube A reaching high altitude ===
+    high_altitude_reward = torch.tanh(cubeA_height / 0.2)  # assume 0.2 is the max height achievable
+    state2_reward = torch.where(FSM == 2, high_altitude_reward, torch.zeros_like(high_altitude_reward))
+    
+    # === state 3 reward: Horizontal alignment of cube A and cube B ===
+    horiz_alignment_reward = 1 - torch.tanh(torch.norm(cubeA_to_cubeB_pos[:,:2], dim=-1))
+    state3_reward = torch.where(FSM == 3, horiz_alignment_reward, torch.zeros_like(horiz_alignment_reward))
+    
+    # === state 4 reward: Cube A placed directly above cube B ===
+    target_distance = (cubeA_size + cubeB_size) / 2.0
+    vertical_margin = 0.01  # introducing margin to avoid zero reward in state 4
+    distance_to_target = torch.abs(torch.norm(cubeA_to_cubeB_pos, dim=-1) - target_distance)
+    alignment_reward = 1 - torch.tanh(distance_to_target / (target_distance + vertical_margin))
+    state4_reward = torch.where(FSM == 4, alignment_reward, torch.zeros_like(alignment_reward))
+    
+    # === state 5 reward: Gripper opening ===
+    open_gripper_reward = torch.tanh((a_gripper + 1) / 2)  # Encourage smoother gripper opening
+    state5_reward = torch.where(FSM == 5, open_gripper_reward, torch.zeros_like(open_gripper_reward))
+    
+    # === state 6 reward: Final state where cube A is stacked on cube B ===
+    stacked_height = cubeB_size + cubeA_size / 2
+    stacking_reward = torch.tanh((cubeA_height - stacked_height) / stacked_height)
+    state6_reward = torch.where(FSM == 6, stacking_reward, torch.zeros_like(stacking_reward))
+    
+    # === BSR ===
+    BSR = FSM.to(torch.float32)
+    
+    # Sum up all state reward components and BSR into total reward
+    reward = state0_reward + state1_reward + state2_reward + state3_reward + state4_reward + state5_reward + state6_reward + BSR
+    
+    # Store each state reward into the dict
+    reward_components["r/state0"] = state0_reward.mean()
+    reward_components["r/state1"] = state1_reward.mean()
+    reward_components["r/state2"] = state2_reward.mean()
+    reward_components["r/state3"] = state3_reward.mean()
+    reward_components["r/state4"] = state4_reward.mean()
+    reward_components["r/state5"] = state5_reward.mean()
+    reward_components["r/state6"] = state6_reward.mean()
+    reward_components["r/BSR"] = BSR.mean()
+
+    return reward, reward_components
+```
+INFO: TOTAL TOKEN: 22854
+INFO: EVALUATION START
+INFO: EVALUATION INFO: max_epochs=1000
+INFO: DEMO END BY INTERUPT
+INFO: CONVERSATION LOG JSON: /home/miat/Eureka_modified/LLMRLT/logs/FrankaCubeStackRRR//24-06-28-20-29-33.json

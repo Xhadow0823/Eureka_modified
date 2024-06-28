@@ -6,12 +6,11 @@ Please carefully analyze the evaluation result and provide a new, improved rewar
 	+ If the BSR is always near zero, rewrite the entire reward function.
     + In the evaluation, the highest achievable sub-task index is sub-task {highest_achievable_st}, while the last sub-task in the entire task is sub-task {last_st}. Please consider redesigning the reward functions for sub-tasks {highest_achievable_st} through {last_st}.
     + Do not modify the BSR component.
-For the modifications of sub-tasks {highest_achievable_st} through {last_st}, here are some guidelines:
-    + If the sub-task reward of state n is always near zero, re-design the sub-task reward.
++ For the modifications of sub-tasks {highest_achievable_st} through {last_st}, here are some guidelines:
     + If the minimum value of any sub-task reward is less than 0, the sub-task reward range is illegal. Modify the sub-task reward to range from 0 to 1.
     + If the maximum value of any sub-task reward is more than 1 and the sub-task is not the latest sub-task, the sub-task reward range is illegal. Modify the sub-task reward to range from 0 to 1.
-    + If some sub-task reward component's magnitude is relatively smaller than other reward components, make the sub-task reward function more sensitive.
-For sub-tasks 0 through {highest_achievable_st-1}, please check for the following issues. If none of these issues are present, retain their design:
+    + If the sub-task reward of state n is always near zero, re-design the sub-task reward.
++ For sub-tasks 0 through {highest_achievable_st-1}, please check for the following issues. If none of these issues are present, retain their design:
     + If the minimum value of any sub-task reward is less than 0, the sub-task reward range is illegal. Modify the sub-task reward to range from 0 to 1.
     + If the maximum value of any sub-task reward is more than 1 and the sub-task is not the latest sub-task, the sub-task reward range is illegal. Modify the sub-task reward to range from 0 to 1.
 + Please infer the domain of the observations required to calculate the sub-task rewards based on the range of sub-task reward results in the evaluation result, and redesign the functions according to that domain to ensure the sub-task reward range is valid.

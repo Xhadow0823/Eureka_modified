@@ -329,7 +329,7 @@ class FrankaCabinetRRR(VecTask):
         self.franka_rfinger_rot = torch.zeros_like(self.franka_local_grasp_rot)
 
     def compute_reward(self, actions):
-        self.rew_buf[:], self.reward_components = compute_reward(self.franka_grasp_pos, self.drawer_grasp_pos, self.franka_lfinger_pos, self.franka_rfinger_pos, self.cabinet_dof_pos, self.FSM)
+        # @LLMRLT: CALL_REWARD_HERE
 
         self.extras.update(self.reward_components)  # log reward components in tensorboard
 
@@ -375,40 +375,7 @@ class FrankaCabinetRRR(VecTask):
         
         return FSM
 
-    def compute_observations(self):
-        self.gym.refresh_actor_root_state_tensor(self.sim)
-        self.gym.refresh_dof_state_tensor(self.sim)
-        self.gym.refresh_rigid_body_state_tensor(self.sim)
-
-        hand_pos = self.rigid_body_states[:, self.hand_handle][:, 0:3]
-        hand_rot = self.rigid_body_states[:, self.hand_handle][:, 3:7]
-        drawer_pos = self.rigid_body_states[:, self.drawer_handle][:, 0:3]
-        drawer_rot = self.rigid_body_states[:, self.drawer_handle][:, 3:7]
-
-        self.franka_grasp_rot[:], self.franka_grasp_pos[:], self.drawer_grasp_rot[:], self.drawer_grasp_pos[:] = \
-            compute_grasp_transforms(hand_rot, hand_pos, self.franka_local_grasp_rot, self.franka_local_grasp_pos,
-                                     drawer_rot, drawer_pos, self.drawer_local_grasp_rot, self.drawer_local_grasp_pos
-                                     )
-
-        self.franka_lfinger_pos = self.rigid_body_states[:, self.lfinger_handle][:, 0:3]
-        self.franka_rfinger_pos = self.rigid_body_states[:, self.rfinger_handle][:, 0:3]
-        self.franka_lfinger_rot = self.rigid_body_states[:, self.lfinger_handle][:, 3:7]
-        self.franka_rfinger_rot = self.rigid_body_states[:, self.rfinger_handle][:, 3:7]
-
-        dof_pos_scaled = (2.0 * (self.franka_dof_pos - self.franka_dof_lower_limits)
-                          / (self.franka_dof_upper_limits - self.franka_dof_lower_limits) - 1.0)
-        to_target = self.drawer_grasp_pos - self.franka_grasp_pos
-
-        self.FSM = self.compute_FSM()
-        self.obs_buf = torch.cat((dof_pos_scaled, self.franka_dof_vel * self.dof_vel_scale, to_target,
-                                  self.cabinet_dof_pos[:, 3].unsqueeze(-1), self.cabinet_dof_vel[:, 3].unsqueeze(-1),
-                                  torch.pow(2.0, self.FSM.view(self.num_envs, -1))  # get current sub-task index from sub-task transition function
-                                  ), dim=-1)
-        
-        self.drawer_grasp_pos       # this is drawer handle position
-        self.cabinet_dof_vel[:, 3]  # this is "the distance of the draw have been pulled"
-
-        return self.obs_buf
+    # @LLMRLT: DEF_OBS_HERE
     
     # def compute_observations(self):
 
@@ -583,65 +550,7 @@ class FrankaCabinetRRR(VecTask):
 ###=========================jit functions=========================###
 #####################################################################
 
-@torch.jit.script
-def compute_reward(
-        franka_grasp_pos: torch.Tensor,
-        drawer_grasp_pos: torch.Tensor,
-        franka_lfinger_pos: torch.Tensor,
-        franka_rfinger_pos: torch.Tensor,
-        cabinet_dof_pos: torch.Tensor, 
-        FSM: torch.Tensor
-) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
-    # initialize reward and reward components
-    reward = torch.zeros_like(FSM, dtype=torch.float32)
-    reward_components = {}
-
-    # === state 0 reward: finger approaching drawer grasp ===
-    distance_to_drawer = torch.norm(franka_grasp_pos - drawer_grasp_pos, dim=-1)
-    approach_reward = 1.0 - torch.tanh(distance_to_drawer)
-    state0_reward = torch.where(FSM == 0, approach_reward, torch.zeros_like(FSM, dtype=torch.float32))
-
-    # === state 1 reward: finger gripping drawer handle ===
-    left_finger_dist = torch.norm(franka_lfinger_pos - drawer_grasp_pos, dim=-1)
-    right_finger_dist = torch.norm(franka_rfinger_pos - drawer_grasp_pos, dim=-1)
-    grip_reward = 1.0 - torch.tanh(left_finger_dist + right_finger_dist)
-    state1_reward = torch.where(FSM == 1, grip_reward, torch.zeros_like(FSM, dtype=torch.float32))
-
-    # Redesigning Sub-task rewards for states 2 to 5
-
-    # === state 2 reward: drawer being moderately open ===
-    drawer_open_pos = cabinet_dof_pos[:, 3]
-    moderate_open_reward = torch.tanh(drawer_open_pos)
-    state2_reward = torch.where(FSM == 2, moderate_open_reward, torch.zeros_like(FSM, dtype=torch.float32))
-
-    # === state 3 reward: drawer being significantly open ===
-    significant_open_reward = torch.sigmoid(drawer_open_pos - 0.5)  # using sigmoid to ensure range 0~1
-    state3_reward = torch.where(FSM == 3, significant_open_reward, torch.zeros_like(FSM, dtype=torch.float32))
-
-    # === state 4 reward: drawer being largely open ===
-    large_open_reward = torch.pow(drawer_open_pos, 0.75)  # increasing reward sensitivity using power function
-    state4_reward = torch.where(FSM == 4, large_open_reward, torch.zeros_like(FSM, dtype=torch.float32))
-
-    # === state 5 reward: drawer fully open ===
-    full_open_reward = drawer_open_pos  # Linearly scaling for full open drawer
-    state5_reward = torch.where(FSM == 5, full_open_reward, torch.zeros_like(FSM, dtype=torch.float32))
-
-    # === BSR ===
-    BSR = FSM.to(torch.float32)  # important: this BSR reward is needed for all tasks
-
-    # Sum up all state reward components and BSR into total reward
-    reward = state0_reward + state1_reward + state2_reward + state3_reward + state4_reward + state5_reward + BSR
-
-    # Store each state reward in the dict
-    reward_components["r/state0"] = state0_reward.mean()
-    reward_components["r/state1"] = state1_reward.mean()
-    reward_components["r/state2"] = state2_reward.mean()
-    reward_components["r/state3"] = state3_reward.mean()
-    reward_components["r/state4"] = state4_reward.mean()
-    reward_components["r/state5"] = state5_reward.mean()
-    reward_components["r/BSR"] = BSR.mean()  # save BSR into reward_components dict
-
-    return reward, reward_components
+# @LLMRLT: DEF_REWARD_HERE
 
 @torch.jit.script
 def compute_reward_R3D(

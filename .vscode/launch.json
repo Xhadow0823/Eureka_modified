@@ -46,7 +46,40 @@
                 "headless=False",
                 // "train.params.config.max_epochs=1000",
                 
-                // "checkpoint='policy-2024-06-28_20-49-23/runs/FrankaCubeStackRRR-2024-06-28_20-49-24/nn/last_FrankaCubeStackRRR_ep_1000.pth'",
+                "checkpoint='policy-2024-06-29_14-18-39/runs/FrankaCabinetRRR-2024-06-29_14-18-39/nn/last_FrankaCabinetRRR_ep_400.pth'",
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "Run LLMRCS",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/LLMRLT/main.py",
+            "args": [
+                "!RUN_NEXT_FOR_EXP!",
+
+                "--task=FrankaCabinetRRR",
+                "--max_iters=10",
+                "--max_epochs=300",
+                
+                // or in common style
+                // "--task", "FrankaCabinetRRR",
+                // "--max_iters", "10",
+                // "--max_epochs", "300",
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "(Cabinet) Run LLMRCS",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/LLMRLT/main.py",
+            "args": [
+                "--task=FrankaCabinetRRR",
+                "--max_iters=10",
+                "--max_epochs=400",
             ],
             "console": "integratedTerminal",
             "justMyCode": true

@@ -1,0 +1,8 @@
+This task is going to open the cabinet drawer using a Franka arm.
+This task is decomposed into 6 sub-tasks.
+The current sub-task index of each agent is stored in the variable "FSM" as a torch.Tensor.
+
+The sub-task 0 (state0) requires the finger approaching the drawer grasp.
+The sub-task 1 (state1) requires the finger griping the drawer handle.
+
+The sub-task 2,3,4 and 5 (state2, state3, state4 and state5) requires the drawer being as open as possible.

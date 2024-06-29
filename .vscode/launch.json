@@ -35,7 +35,8 @@
             "request": "launch",
             "program": "./isaacgymenvs/isaacgymenvs/train.py",
             "args": [
-                "task=FrankaCubeStackRRR",
+                // "task=FrankaCubeStackRRR",
+                "task=FrankaCabinetRRR",
                 "num_envs=2",
                 "train.params.config.minibatch_size=4",
                 
@@ -45,7 +46,7 @@
                 "headless=False",
                 // "train.params.config.max_epochs=1000",
                 
-                "checkpoint='policy-2024-06-28_20-49-23/runs/FrankaCubeStackRRR-2024-06-28_20-49-24/nn/last_FrankaCubeStackRRR_ep_1000.pth'",
+                // "checkpoint='policy-2024-06-28_20-49-23/runs/FrankaCubeStackRRR-2024-06-28_20-49-24/nn/last_FrankaCubeStackRRR_ep_1000.pth'",
             ],
             "console": "integratedTerminal",
             "justMyCode": true

@@ -71,6 +71,7 @@ from .shadow_hand_switch import ShadowHandSwitch
 from .shadow_hand_two_catch_underarm import ShadowHandTwoCatchUnderarm
 from .franka_lift2 import FrankaLift2
 from .franka_cube_stack_rrr import FrankaCubeStackRRR
+from .franka_cabinet_rrr import FrankaCabinetRRR
 
 # Mappings from strings to environments
 isaacgym_task_map = {
@@ -120,5 +121,6 @@ isaacgym_task_map = {
     "ShadowHandTwoCatchUnderarm": ShadowHandTwoCatchUnderarm,
     "FrankaLift2": FrankaLift2,
     "FrankaCubeStackRRR": FrankaCubeStackRRR,
+    "FrankaCabinetRRR": FrankaCabinetRRR,
 }
 

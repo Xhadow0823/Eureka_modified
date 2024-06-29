@@ -5,8 +5,6 @@ from Eval import Evaluation
 from Feedback import wait_any_key_for, select
 from utils import task_name_to_env_name, register_SIGINT_to
 
-# 注意！ 現在的 PROMPT 超爛，記得改回來再繼續測試並設計新 PROMPT！！
-
 task = 'FrankaCubeStackRRR'
 env_name = task_name_to_env_name(task)
 max_epochs = 300

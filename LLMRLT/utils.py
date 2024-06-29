@@ -4,7 +4,6 @@ import time
 import re
 from collections import defaultdict
 from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
-from typing import List
 
 def get_current_file_dir():
     return os.path.dirname(os.path.realpath(__file__))
@@ -103,3 +102,23 @@ def register_SIGINT_to(func_to_call, then_exit=True):
 
 def pretty_dict_maker(d):
     return str(d).replace("], ", "], \n")
+
+
+from dataclasses import dataclass
+@dataclass
+class CliArgs:
+    task: str
+    max_epochs: int
+    max_iters: int
+def read_all_cli_args() -> CliArgs:
+    'read all cli arguments and return in a CliArgs object (Namespace)'
+    import argparse
+
+    parser = argparse.ArgumentParser(prog='LLMRCS', description='LLM based Reward Codesign System', epilog=':)')
+    parser.add_argument('-t', '--task', type=str)
+    parser.add_argument('-m', '--max_epochs', type=int)
+    parser.add_argument('-i', '--max_iters', type=int)
+    args = parser.parse_args()
+    # print(args)
+
+    return args

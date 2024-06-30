@@ -3,11 +3,14 @@ from Chat import Chat
 from Logger import Logger
 from Eval import Evaluation
 from Feedback import wait_any_key_for, select
-from utils import task_name_to_env_name, register_SIGINT_to
+from utils import task_name_to_env_name, register_SIGINT_to, read_all_cli_args
 
-task = 'FrankaCubeStackRRR'
+args = read_all_cli_args()
+
+task = 'FrankaCabinetRRR'  if args.task is None else args.task
 env_name = task_name_to_env_name(task)
-max_epochs = 300
+max_epochs = 300           if args.max_epochs is None else args.max_epochs
+max_iters = 99             if args.max_iters is None else args.max_iters
 
 prompt = Prompt(task_name=task, prompt_config={
     "code_output_tip":  "prompts/R3D/R3D_code_output_tip.txt",
@@ -35,7 +38,7 @@ def caht_SIGINT_handler():
     logger.info(f"CONVERSATION LOG JSON: {conversation_json}")
 register_SIGINT_to(caht_SIGINT_handler)
 
-while True:
+for _ in range(max_iters):
     human_feedback = None
 
     logger.info(f"USER PROMPT: {next_prompt}")
@@ -108,7 +111,6 @@ while True:
         next_prompt = prompt.gen_prompt_after_error(eval_result.error_msg, human_feedback)
     else:
         next_prompt = prompt.gen_prompt_after_train(eval_summary, format_dict=eval_result.get_code_feedback_info(), human_feedback=human_feedback)
-        # BSR_analysis = eval_result.gen_BSR_analysis_str()
     # END OF MAIN WHILE LOOP
 
 logger.info("DEMO END")

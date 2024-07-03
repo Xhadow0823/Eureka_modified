@@ -79,6 +79,8 @@ class Chat:
     temperature = 1.0
     chunk_size = 1
     '''chunk always be 1 in current version'''
+    seed: int=None
+    'default is None for not using seed'
 
     ##### Informations about this conversation #####
     _messages: Messages
@@ -88,10 +90,12 @@ class Chat:
     system_content: str = None
     '''string for the initial system prompt'''
 
-    def __init__(self):
+    def __init__(self, **kwargs):
         openai.api_key = os.getenv("OPENAI_API_KEY")
         self._messages = Messages()
         self._usage = Usage()
+        if "seed" in kwargs.keys():
+            self.seed = kwargs["seed"]
     
     def set_system_content(self, content: str=None):
         if content == None:
@@ -117,7 +121,8 @@ class Chat:
                     model=self.GPT_MODEL,
                     messages=messages,
                     temperature=self.temperature,
-                    n=self.chunk_size
+                    n=self.chunk_size,
+                    seed=self.seed
                 )
                 total_samples += self.chunk_size
                 break
@@ -126,7 +131,8 @@ class Chat:
                 if attempt >= 10:
                     self.chunk_size = max(int(self.chunk_size / 2), 1)
                     print("Current Chunk Size", self.chunk_size)
-                self.logger.warning(f"Attempt {attempt+1} failed with error: {e}")
+                # self.logger.warning(f"Attempt {attempt+1} failed with error: {e}")  # deprecated
+                print(f"Attempt {attempt+1} failed with error: {e}")
                 time.sleep(1)
         if response == None:
             print(f"reach max attempt {self.MAX_ATTEMPT}")

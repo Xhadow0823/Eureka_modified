@@ -110,6 +110,8 @@ class CliArgs:
     task: str
     max_epochs: int
     max_iters: int
+    prevent_auto: bool
+    seed: int
 def read_all_cli_args() -> CliArgs:
     'read all cli arguments and return in a CliArgs object (Namespace)'
     import argparse
@@ -118,6 +120,8 @@ def read_all_cli_args() -> CliArgs:
     parser.add_argument('-t', '--task', type=str)
     parser.add_argument('-m', '--max_epochs', type=int)
     parser.add_argument('-i', '--max_iters', type=int)
+    parser.add_argument('-s', '--seed', type=int)
+    parser.add_argument('--prevent_auto', type=bool, default=False)
     args = parser.parse_args()
     # print(args)
 

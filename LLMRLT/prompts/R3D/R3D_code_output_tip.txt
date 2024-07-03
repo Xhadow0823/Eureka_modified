@@ -5,9 +5,8 @@ The code output should be formatted as a python code string: "```python ... ```"
 
 Some helpful tips for writing the reward function code:
     + The whole task will be decompose into several "sub-tasks", and the reward function will be decompose into several sub-reward functions called "sub-task reward components".
-    + Each sub-task reward component is continuous and smooth, DO NOT use binary conditions or specific thresholds.
-    + Each sub-task reward component must range 0~1.
+    + Each sub-task reward component is continuous and smooth, DO NOT use binary conditions or specific thresholds. DO NOT use clamp function.
+    + Each sub-task reward component must range 0~1, EXCEPT the latest sub-task reward.  The decision to give additional rewards should be based on the task description.
     + The final reward is the sum of all sub-task reward components plus the BSR(Base Sub-task Reward).
-    + For certain tasks, additional rewards may be given upon reaching the final sub-task. The decision to give additional rewards should be based on the task description.
     + Make sure the type of each input variable is correctly specified; a float input variable should not be specified as torch.Tensor .
     + Most importantly, the reward code's input variables must contain only attributes of the provided environment class definition (namely, variables that have prefix self.). Under no circumstance can you introduce new input variables.

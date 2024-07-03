@@ -1,7 +1,6 @@
 Please carefully analyze the evaluation result and provide a new, improved reward function that can better solve the task. Some helpful tips for analyzing the policy feedback:
 + For the SR (Success Rate): 
 	+ If the success rate (SR) is always near zero, rewrite the entire reward function.
-	+ If the success rate (SR) cannot reach 0.4, the user must increase the task's max-epochs for evaluation.
 + For the BSR (Base Sub-task Reward): 
 	+ If the BSR is always near zero, rewrite the entire reward function.
     + In the evaluation, the highest achievable sub-task index is sub-task {highest_achievable_st}, while the last sub-task in the entire task is sub-task {last_st}. Please consider redesigning the reward functions for sub-tasks {highest_achievable_st} through {last_st}.
@@ -9,10 +8,11 @@ Please carefully analyze the evaluation result and provide a new, improved rewar
 + For the modifications of sub-tasks {highest_achievable_st} through {last_st}, here are some guidelines:
     + If the minimum value of any sub-task reward is less than 0, the sub-task reward range is illegal. Modify the sub-task reward to range from 0 to 1.
     + If the maximum value of any sub-task reward is more than 1 and the sub-task is not the latest sub-task, the sub-task reward range is illegal. Modify the sub-task reward to range from 0 to 1.
-    + If the sub-task reward of state n is always near zero, re-design the sub-task reward.
-+ For sub-tasks 0 through {highest_achievable_st-1}, please check for the following issues. If none of these issues are present, retain their design:
+    + If the sub-task reward of state n is always near zero, re-design the sub-task reward base on the task description.
++ For sub-tasks 0 through {highest_achievable_st-1}, please check for the following issues. If none of these issues are present, RETAIN their design:
     + If the minimum value of any sub-task reward is less than 0, the sub-task reward range is illegal. Modify the sub-task reward to range from 0 to 1.
     + If the maximum value of any sub-task reward is more than 1 and the sub-task is not the latest sub-task, the sub-task reward range is illegal. Modify the sub-task reward to range from 0 to 1.
+    + Note that the latest sub-task reward do not have the limitation about range.
 + Please infer the domain of the observations required to calculate the sub-task rewards based on the range of sub-task reward results in the evaluation result, and redesign the functions according to that domain to ensure the sub-task reward range is valid.
-+ Please redesign the sub-task reward according to the sub-task reward domain to ensure the reward range is valid, without using functions like clamp.
++ Please redesign the sub-task reward according to the sub-task reward domain to ensure the reward range is valid, WITHOUT using functions like clamp.
 + Please analyze each existing reward component in the suggested manner above first, and then write the reward!

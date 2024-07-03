@@ -7,4 +7,4 @@ The sub-task 2 (state2) requires cube A to reach as high an altitude as possible
 The sub-task 3 (state3) requires the horizontal coordinates between cube A and cube B to be as close as possible.
 The sub-task 4 (state4) requires cube A to be positioned directly above cube B at a distance of (cubeA_size + cubeB_size)/2. The closer, the better.
 The sub-task 5 (state5) requires the end effector to open as much as possible.
-The sub-task 6 (state6) represents the state where cube A is stacked on cube B, with a reward always equal to 1.
+The sub-task 6 (state6) represents the state where cube A is stacked on cube B, with a reward always equal to 5.

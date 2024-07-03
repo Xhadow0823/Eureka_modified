@@ -7,6 +7,7 @@ class Prompt:
     # initial: Dict[str, str] = None
     task_name: str = None
     # '''this is a Dict that contains some initial prompts'''
+    task_desc: str = None
     initial_system: str = ""
     '''the initial system prompt for the task, this will not be changed after __init__'''
     initial_user: str = ""
@@ -39,16 +40,15 @@ class Prompt:
         
         task_dir = f'{get_current_file_dir()}/tasks/{task_name}/'
         task_obs  = file_to_string(f"{task_dir}/obs.py")
-        task_desc = file_to_string(f"{task_dir}/desc.txt")
+        self.task_desc = file_to_string(f"{task_dir}/desc.txt")
 
         self.initial_system = initial_system.format(task_reward_signature_string=reward_signature) + self.code_output_tip
-        self.initial_user   = initial_user.format(task_obs_code_string=task_obs, task_description=task_desc)
+        self.initial_user   = initial_user.format(task_obs_code_string=task_obs, task_description=self.task_desc)
     
     def gen_prompt_after_train(self, training_summary: str, format_dict, human_feedback=None):
-        return  self.policy_feedback + \
-                training_summary + '\n' + \
-                (self.code_feedback.format(**format_dict) if human_feedback is None else (human_feedback+'\n')) + \
-                self.code_output_tip
+        return  self.policy_feedback + training_summary + '\n' + \
+                (self.code_feedback.format(**format_dict) if human_feedback is None else ( "Here are some tips for writing a better reward function code from the human expert: \n" + human_feedback+'\n')) + \
+                self.task_desc + self.code_output_tip
 
     def gen_prompt_after_error(self, error_msg: str, human_feedback=None):
         return  self.execution_error_feedback.format(traceback_msg=error_msg) + \

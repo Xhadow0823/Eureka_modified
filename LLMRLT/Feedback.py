@@ -57,10 +57,11 @@ def what_do_you_want():
     
     return result_pack
 
-def wait_any_key_for(sec: int, action_to_do: str="do nothing") -> bool:
+def wait_any_key_for(sec: int, action_to_do: str="do nothing", prevent_auto: bool=False) -> bool:
     'will wait if any key pressed in seconds, return bool'
     is_key_pressed = False
-    
+    sec = sec if not prevent_auto else 300
+
     def on_press(key):
         nonlocal is_key_pressed
         is_key_pressed = True

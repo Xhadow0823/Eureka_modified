@@ -11,6 +11,8 @@ task = 'FrankaCabinetRRR'  if args.task is None else args.task
 env_name = task_name_to_env_name(task)
 max_epochs = 300           if args.max_epochs is None else args.max_epochs
 max_iters = 99             if args.max_iters is None else args.max_iters
+seed = None                if args.seed is None else int(args.seed)
+# print(args)  # for debug
 
 prompt = Prompt(task_name=task, prompt_config={
     "code_output_tip":  "prompts/R3D/R3D_code_output_tip.txt",
@@ -18,11 +20,17 @@ prompt = Prompt(task_name=task, prompt_config={
     "code_feedback":    "prompts/R3D/R3D_code_feedback_2.txt",
     "policy_feedback":  "prompts/R3D/R3D_policy_feedback.txt",
 })
-chat = Chat()
+chat = Chat(seed=seed)
 chat_logger = Logger(task_name=task)
 logger = chat_logger.getLogger()
 
-logger.info(f"TASK INFO: {env_name}")
+task_info_for_logger = {
+    "task":     task,
+    "env_name": env_name,
+    "llm":      Chat.GPT_MODEL,
+    "seed":     seed
+}
+logger.info(f"TASK INFO: {task_info_for_logger}")
 
 logger.info("DEMO START")
 
@@ -47,7 +55,7 @@ for _ in range(max_iters):
 
     logger.info(f"TOTAL TOKEN: {chat.get_total_usage()}")
 
-    is_any_key_pressed = wait_any_key_for(5, "select action (or system will do evaluation)")
+    is_any_key_pressed = wait_any_key_for(5, "select action (or system will do evaluation)", args.prevent_auto)
     if is_any_key_pressed:
         selected = select([
             "do evaluation",   # (0)
@@ -89,7 +97,7 @@ for _ in range(max_iters):
         logger.info(f"EVALUATION SUMMARY: \n{eval_summary}")
     logger.info(f"EVALUATION FINISH")
 
-    is_any_key_pressed = wait_any_key_for(5, "select action (or system will auto improve)")
+    is_any_key_pressed = wait_any_key_for(5, "select action (or system will auto improve)", args.prevent_auto)
     if is_any_key_pressed:
         selected = select([
             "auto improve",

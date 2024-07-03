@@ -11,6 +11,7 @@ task = 'FrankaCabinetRRR'  if args.task is None else args.task
 env_name = task_name_to_env_name(task)
 max_epochs = 300           if args.max_epochs is None else args.max_epochs
 max_iters = 99             if args.max_iters is None else args.max_iters
+max_samples = 1            if args.max_samples is None else args.max_samples
 seed = None                if args.seed is None else int(args.seed)
 # print(args)  # for debug
 
@@ -25,10 +26,12 @@ chat_logger = Logger(task_name=task)
 logger = chat_logger.getLogger()
 
 task_info_for_logger = {
-    "task":     task,
-    "env_name": env_name,
-    "llm":      Chat.GPT_MODEL,
-    "seed":     seed
+    "task":        task,
+    "env_name":    env_name,
+    "llm":         Chat.GPT_MODEL,
+    "seed":        seed,
+    "max_iters":   max_iters,
+    "max_samples": max_samples,
 }
 logger.info(f"TASK INFO: {task_info_for_logger}")
 

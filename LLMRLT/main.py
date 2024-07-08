@@ -1,7 +1,7 @@
 from Prompt import Prompt
 from Chat import Chat
 from Logger import Logger
-from Eval import Evaluation
+from Eval import Evaluation, EvoEvaluation
 from Feedback import wait_any_key_for, select
 from utils import task_name_to_env_name, register_SIGINT_to, read_all_cli_args
 
@@ -49,12 +49,14 @@ def caht_SIGINT_handler():
     logger.info(f"CONVERSATION LOG JSON: {conversation_json}")
 register_SIGINT_to(caht_SIGINT_handler)
 
-for _ in range(max_iters):
+for iter_idx in range(max_iters):
     human_feedback = None
 
     logger.info(f"USER PROMPT: {next_prompt}")
-    resp = chat.chat(next_prompt)
-    logger.info(f"LLM RESPONSE: {resp}")
+    # resp = chat.chat(next_prompt)
+    resp_list = chat.chat_evo(next_prompt, max_samples)
+    # logger.info(f"LLM RESPONSE: {resp}")
+    logger.info(f"LLM RESPONSE: ...OK")
 
     logger.info(f"TOTAL TOKEN: {chat.get_total_usage()}")
 
@@ -86,11 +88,12 @@ for _ in range(max_iters):
             pass
 
     logger.info(f"EVALUATION START")
-    logger.info(f"EVALUATION INFO: max_epochs={max_epochs}")
-    eval_result = Evaluation(task=task, env_name=env_name, raw_reward_code=resp, max_epochs=max_epochs)
+    logger.info(f"EVALUATION INFO: \n\tmax_epochs={max_epochs}\n\tmax_samples={max_samples}")
+    # eval_result = Evaluation(task=task, env_name=env_name, raw_reward_code=resp, max_epochs=max_epochs)
+    eval_result = EvoEvaluation(task=task, env_name=env_name, raw_reward_code_list=resp_list, max_epochs=max_epochs, max_samples=max_samples, iter_idx=iter_idx)
     eval_summary = ""
     human_feedback = None
-
+    
     if eval_result.state == "error":
         logger.info(f"EVALUATION ERROR")
         logger.info(f"ERROR MSG: {eval_result.error_msg}")
@@ -99,6 +102,8 @@ for _ in range(max_iters):
         eval_summary = eval_result.get_eval_summary()
         logger.info(f"EVALUATION SUMMARY: \n{eval_summary}")
     logger.info(f"EVALUATION FINISH")
+    logger.info(f"BEST RESULT: sample{eval_result.sample_idx}")
+    chat.log_message_pair_evo(next_prompt, resp_list[eval_result.sample_idx])
 
     is_any_key_pressed = wait_any_key_for(5, "select action (or system will auto improve)", args.prevent_auto)
     if is_any_key_pressed:

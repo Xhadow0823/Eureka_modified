@@ -43,8 +43,6 @@ class Messages:
         self.reset()
         self._all_messages = conversation
 
-
-
 class UsageDict(TypedDict):
     prompt_tokens: int
     completion_tokens: int
@@ -73,7 +71,7 @@ class Usage:
 
 class Chat:
     MAX_ATTEMPT = 100
-    GPT_MODEL="gpt-4o"  # GPT_MODEL="gpt-4-0125-preview"  # GPT_MODEL="gpt-4-0314"  # NOTE: gpt-4-0125 變得很笨，目前改用 gpt-4o
+    GPT_MODEL:str="gpt-4o"  # GPT_MODEL="gpt-4-0125-preview"  # GPT_MODEL="gpt-4-0314"  # NOTE: gpt-4-0125 變得很笨，目前改用 gpt-4o
     
     ##### GPT configs #####
     temperature = 1.0
@@ -143,6 +141,51 @@ class Chat:
         self._usage.update(response['usage'])
 
         return assistant_content_dict["content"]
+    
+    def chat_evo(self, content: str, max_samples: int) -> List[str]:
+        'just like chat but will generate multiple responds and have to save into message log stack manually after evalution'
+        if self.system_content == None:
+            self.set_system_content()
+
+        messages = self._messages.get_all_for_chat()
+        user_content_dict: MessageDict = {"role": "user", "content": content}
+        messages.append(user_content_dict)
+
+        chunk_size = max_samples
+        total_samples = 0
+        response = None
+        for attempt in range(self.MAX_ATTEMPT):
+            try:
+                response = openai.ChatCompletion.create(
+                    model=self.GPT_MODEL,
+                    messages=messages,
+                    temperature=self.temperature,
+                    n=chunk_size,
+                    seed=self.seed
+                )
+                total_samples += chunk_size
+                break
+            except Exception as e:
+                # TODO: ?
+                if attempt >= 10:
+                    chunk_size = max(int(chunk_size / 2), 1)
+                    print("Current Chunk Size", chunk_size)
+                # self.logger.warning(f"Attempt {attempt+1} failed with error: {e}")  # deprecated
+                print(f"Attempt {attempt+1} failed with error: {e}")
+                time.sleep(1)
+        if response == None:
+            print(f"reach max attempt {self.MAX_ATTEMPT}")
+            return None
+        
+        # assistant_content_dict: MessageDict = response["choices"][0]["message"]
+        # self._messages.log([ user_content_dict, assistant_content_dict ])  # NO LOG HERE
+        assistant_content_dict_list: List[MessageDict] = [response["choices"][i]["message"] for i in range(total_samples)]
+        self._usage.update(response['usage'])
+        all_content_list = [content_dict["content"] for content_dict in assistant_content_dict_list]
+
+        return all_content_list
+    def log_message_pair_evo(self, user_prompt: str, assistant_resp: str):
+        self._messages.log([MessageDict(role="user", content=user_prompt), MessageDict(role="assistant", content=assistant_resp)])
     
     def get_conversation(self) -> List[Dict]:
         return self._messages.get_all()

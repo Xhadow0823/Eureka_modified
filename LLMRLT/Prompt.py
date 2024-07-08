@@ -48,7 +48,7 @@ class Prompt:
     def gen_prompt_after_train(self, training_summary: str, format_dict, human_feedback=None):
         return  self.policy_feedback + training_summary + '\n' + \
                 (self.code_feedback.format(**format_dict) if human_feedback is None else ( "Here are some tips for writing a better reward function code from the human expert: \n" + human_feedback+'\n')) + \
-                self.task_desc + self.code_output_tip
+                self.code_output_tip
 
     def gen_prompt_after_error(self, error_msg: str, human_feedback=None):
         return  self.execution_error_feedback.format(traceback_msg=error_msg) + \

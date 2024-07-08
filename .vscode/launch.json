@@ -79,9 +79,9 @@
             "args": [
                 "--task=FrankaCubeStackRRR",
                 "--max_iters=10",
-                "--max_epochs=500",
+                "--max_epochs=1000",
                 // "--prevent_auto=True",
-                "--seed=19307",  // 1234(bad), 5678, 9487, 111522
+                "--seed=26541",  // 1234(bad), 5678, 9487, 111522, 19307, 26541
             ],
             "console": "integratedTerminal",
             "justMyCode": true
@@ -96,6 +96,21 @@
                 "--max_iters=10",
                 "--max_epochs=400",
                 "--seed=1234",  // 1234, 
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+
+        {
+            "name": "(Cabinet) Run LLMRCS w/ EVO",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/LLMRLT/main.py",
+            "args": [
+                "--task=FrankaCabinetRRR",
+                "--max_iters=5",
+                "--max_epochs=300",
+                "--max_samples=2",
             ],
             "console": "integratedTerminal",
             "justMyCode": true

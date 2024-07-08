@@ -7,12 +7,27 @@ from pynput.keyboard import Listener
 import time
 import re
 
-# Alg.
-# 1. search Network Directory: /home/miat/Eureka_modified/policy-2024-06-13_12-09-41/runs/FrankaLift2-2024-06-13_12-09-41/nn
-# 2. search Tensorboard Directory: /home/miat/Eureka_modified/policy-2024-06-13_12-09-41/runs/FrankaLift2-2024-06-13_12-09-41/summaries
-# 3. search fps step: 190740 fps step and policy inference: 145039 fps total: 122382 epoch: 1/100 frames: 0
-# 4. detect Traceback: ...
+def extract_tags_to_dict(tensorboard_log_dir: str) -> Dict[str, List[float]]:
+    'input a tensorboard log dir path, output a summary dict about some tags'
+    tag_to_scalars = tensorboard_log_to_dd(tensorboard_log_dir)
+    max_epochs = len(tag_to_scalars["info/epochs"])
+    epoch_step = max(max_epochs // 10, 1)
+    tags_to_summary = ["rewards/iter", ]  # TODO: add more ??
+    reward_component_tags = list(filter(lambda k: k.startswith("r/"), tag_to_scalars.keys()))
+    tags_to_summary.extend( reward_component_tags )
+    summary_dict = {}
+    for tag_name in tags_to_summary:
+        summary_dict[tag_name] = tag_to_scalars[tag_name][::epoch_step]
+    return summary_dict
 
+def summary_maker(tensorboard_log_dir: str) -> str:
+    'input a tensorboard log dir path, output a formated summary string for policy feedback'
+    summary_dict = extract_tags_to_dict(tensorboard_log_dir)
+    summary = ""
+    for tag_name, datalist in summary_dict.items():
+        line_for_a_tag = f"{tag_name}: {datalist}, min: {min(datalist)}, max: {max(datalist)}\n"
+        summary += line_for_a_tag
+    return summary
 
 class EvalMonitor:
     state: Literal[
@@ -21,6 +36,11 @@ class EvalMonitor:
         "finish",
         "error"
     ] = "prepare"
+    process: subprocess.Popen = None
+    'sub process to trace'
+    sample_idx: int = None
+    'this result belongs to which sample'
+
     training_log_to_trace = None
     last_line_idx = 0
     'this is only available in prepare and train state'
@@ -162,28 +182,98 @@ def Evaluation(**kargs) -> EvalMonitor:
     process.communicate()
     return em  # EvalMonitor
 
-def extract_tags_to_dict(tensorboard_log_dir: str) -> Dict[str, List[float]]:
-    'input a tensorboard log dir path, output a summary dict about some tags'
-    tag_to_scalars = tensorboard_log_to_dd(tensorboard_log_dir)
-    max_epochs = len(tag_to_scalars["info/epochs"])
-    epoch_step = max(max_epochs // 10, 1)
-    tags_to_summary = ["rewards/iter", ]  # TODO: add more ??
-    reward_component_tags = list(filter(lambda k: k.startswith("r/"), tag_to_scalars.keys()))
-    tags_to_summary.extend( reward_component_tags )
-    summary_dict = {}
-    for tag_name in tags_to_summary:
-        summary_dict[tag_name] = tag_to_scalars[tag_name][::epoch_step]
-    return summary_dict
+def EvoEvaluation(**kargs) -> EvalMonitor:
+    '''
+    NOTE: This is Evaluation function with evolutionary search \n
+    input task, env_name, raw_reward_code, max_epochs and max_samples! \n
+    output a BEST EvalMonitor object as evaluation result
+    '''
+    # prepare params
+    task = kargs["task"]
+    env_name = kargs["env_name"]
+    iter_idx: str = str(kargs["iter_idx"])
+    raw_reward_code_str_list = kargs["raw_reward_code_list"]  # TODO: turn into list
+    max_epochs = kargs["max_epochs"]
+    max_samples = kargs["max_samples"]
 
-def summary_maker(tensorboard_log_dir: str) -> str:
-    'input a tensorboard log dir path, output a formated summary string for policy feedback'
-    summary_dict = extract_tags_to_dict(tensorboard_log_dir)
-    summary = ""
-    for tag_name, datalist in summary_dict.items():
-        line_for_a_tag = f"{tag_name}: {datalist}, min: {min(datalist)}, max: {max(datalist)}\n"
-        summary += line_for_a_tag
+    # initialize buffers
+    ems: List[EvalMonitor] = []
 
-    return summary
+    for sample_idx in range(max_samples):
+        C = Code()
+        # load data from files
+        C.load_env_from_file(f"LLMRLT/tasks/{task}/env.py")
+        C.load_obs_function_from_file(f"LLMRLT/tasks/{task}/obs.py")
+        C.load_reward_function(raw_reward_code_str_list[sample_idx])
+        # genertate files
+        env_code_filepath = f"./LLMRLT/codes/{env_name}/iter{iter_idx}/sample{sample_idx}.py"  # e.g. LLMRCT/codes/FrankaCabinetRRR/iter1/sample1.py
+        C.gen_env_code().save(env_code_filepath)
+        ISAAC_ROOT_DIR = "./isaacgymenvs/isaacgymenvs/"
+        eval_log = f"./LLMRLT/codes/{env_name}/iter{iter_idx}/sample{sample_idx}.log"  # e.g. LLMRCT/codes/FrankaCabinetRRR/iter1/sample1.log
+        C.gen_reward_function().save(f"./LLMRLT/codes/{env_name}/iter{iter_idx}-sample{sample_idx}-reward.py")
+        
+        # generate env file for isaac gym
+        shutil.copy(env_code_filepath, ISAAC_ROOT_DIR+f"/tasks/{env_name}.py")
+        
+        print(f"sub-process of {env_name}-iter{iter_idx}-sample{sample_idx} start...")
+        em = None
+        with open(eval_log, 'w') as f:
+            process = subprocess.Popen(['python', '-u', f'{ISAAC_ROOT_DIR}/train.py',  
+                                        'hydra/output=subprocess',
+                                        f'task={task}',
+                                        f'headless={True}', 'force_render=False',
+                                        f'max_iterations={max_epochs}'],
+                                        stdout=f, stderr=f)
+            # create EvalMonitor
+            em = EvalMonitor(eval_log)
+            ems.append(em)
+            em.process = process
+            em.sample_idx = sample_idx
+            while em.tensorboard_log_dir == None:
+                em.find_tensorboard_dir()
+                time.sleep(1)
+                if process.poll():
+                    em.set_error_flag()
+                    break
+            print(f"tensorboard log dir: {em.tensorboard_log_dir}")
+
+            # block until training
+            while em.training_progress_str==None or eval(em.training_progress_str) < 1.0:
+                em.find_training_progress()
+                time.sleep(1)
+                if process.poll():
+                    em.set_error_flag()
+                    break
+                if em.state == "training":
+                    print(f"train progress: {em.training_progress_str}")
+                    break
+        
+    for sample_idx in range(max_samples):
+        em = ems[sample_idx]
+        print(f"waiting sample{sample_idx}...")
+        em.process.communicate()
+        print(f"sample{sample_idx} is ...", end='')
+        if em.state == "error":
+            em.find_error_msg()
+            print(f"ERROR")
+        else:
+            em.set_finish_flag()
+            print(f" ...OK")
+
+    # return best result
+    # TODO
+    best_em = None
+    max_BSRs = []
+    for sample_idx in range(max_samples):
+        em = ems[sample_idx]
+        if em.state == "error":
+            max_BSRs.append(0)
+        else:
+            dd = em.get_tags_to_eval_data_dict()
+            max_BSRs.append( max(dd["r/BSR"]) )
+    best_em = ems[ max_BSRs.index(max(max_BSRs)) ]
+    return best_em  # best EvalMonitor
+
 
 if __name__ == "__main__":
     print()

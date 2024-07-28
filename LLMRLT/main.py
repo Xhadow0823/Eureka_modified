@@ -3,7 +3,7 @@ from Chat import Chat
 from Logger import Logger
 from Eval import Evaluation, EvoEvaluation
 from Feedback import wait_any_key_for, select
-from utils import task_name_to_env_name, register_SIGINT_to, read_all_cli_args
+from utils import task_name_to_env_name, register_SIGINT_to, read_all_cli_args, get_timestamp
 
 args = read_all_cli_args()
 
@@ -35,7 +35,7 @@ task_info_for_logger = {
 }
 logger.info(f"TASK INFO: {task_info_for_logger}")
 
-logger.info("DEMO START")
+logger.info(f"DEMO START @ {get_timestamp()}")
 
 logger.info(f"SYSTEM PROMPT: {prompt.initial_system}")
 chat.set_system_content(prompt.initial_system)
@@ -129,6 +129,6 @@ for iter_idx in range(max_iters):
         next_prompt = prompt.gen_prompt_after_train(eval_summary, format_dict=eval_result.get_code_feedback_info(), human_feedback=human_feedback)
     # END OF MAIN WHILE LOOP
 
-logger.info("DEMO END")
+logger.info(f"DEMO END @ {get_timestamp()}")
 conversation_json = chat_logger.save_conversation( chat.get_conversation() )  # save as json
 logger.info(f"CONVERSATION LOG JSON: {conversation_json}")

@@ -114,7 +114,7 @@ class EvalMonitor:
                     import math
                     self.highest_achievable_st = math.ceil(max_data)
                 elif tag_name.startswith("r/state"):
-                    self.last_st = max(self.last_st, int(tag_name.replace("r/state", '')))
+                    self.last_st = max(self.last_st, int(tag_name.replace("r/state", '')))  # error ocurred when state2_to_5 be used...
         return self.eval_summary_str
     
     def get_code_feedback_info(self) -> dict:

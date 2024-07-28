@@ -108,8 +108,22 @@
             "program": "${workspaceFolder}/LLMRLT/main.py",
             "args": [
                 "--task=FrankaCabinetRRR",
-                "--max_iters=5",
-                "--max_epochs=300",
+                "--max_iters=10",
+                "--max_epochs=400",
+                "--max_samples=2",
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "(FCS) Run LLMRCS w/ EVO",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/LLMRLT/main.py",
+            "args": [
+                "--task=FrankaCubeStackRRR",
+                "--max_iters=10",
+                "--max_epochs=1000",
                 "--max_samples=2",
             ],
             "console": "integratedTerminal",
